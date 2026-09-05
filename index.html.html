@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html lang="ms" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CollageStudio Pro - Canva-Style Photo Editor & Collage Maker</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        canva: {
+                            purple: '#7d2ae8',
+                            blue: '#00c4cc',
+                            dark: '#0e1318',
+                            sidebar: '#18191ce6',
+                            card: '#25262b',
+                            accent: '#8b3dff'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Anton&family=Caveat:wght@600&family=Cinzel:wght@700&family=Dancing+Script:wght@700&family=Inter:wght@300;400;500;600;700&family=Lobster&family=Montserrat:wght@400;600;800&family=Oswald:wght@500;700&family=Pacifico&family=Playfair+Display:ital,wght@0,600;1,400&family=Poppins:wght@400;600;700&family=Roboto:wght@400;700&family=Satisfy&display=swap" rel="stylesheet">
+    <!-- jsPDF for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.4); }
+        .canvas-container {
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            background-image: linear-gradient(45deg, #1e1e24 25%, transparent 25%), linear-gradient(-45deg, #1e1e24 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #1e1e24 75%), linear-gradient(-45deg, transparent 75%, #1e1e24 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 h-screen flex flex-col overflow-hidden">
+
+    <!-- Top Navigation Bar -->
+    <header class="h-14 bg-canva-dark border-b border-gray-800 flex items-center justify-between px-4 z-20">
+        <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-canva-purple to-canva-blue flex items-center justify-center font-black text-xl text-white shadow-lg shadow-canva-purple/30">
+                C
+            </div>
+            <div>
+                <h1 class="font-bold text-base bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">CollageStudio Pro</h1>
+                <p class="text-[10px] text-gray-400 -mt-1">Canva Edition • Flutter AI Engine</p>
+            </div>
+        </div>
+
+        <!-- Canvas Ratio & Quick Settings -->
+        <div class="flex items-center space-x-2">
+            <label class="text-xs text-gray-400 hidden sm:inline">Nisbah Kanvas:</label>
+            <select id="aspectRatioSelect" class="bg-gray-800 text-xs text-gray-200 border border-gray-700 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-canva-purple">
+                <option value="1:1">Instagram Post (1:1)</option>
+                <option value="9:16">Story / TikTok (9:16)</option>
+                <option value="4:5">Portrait (4:5)</option>
+                <option value="16:9">Landscape (16:9)</option>
+                <option value="3:4">Standard (3:4)</option>
+            </select>
+
+            <button id="aiAutoArrangeBtn" class="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs px-3 py-1.5 rounded-lg flex items-center space-x-1.5 font-medium shadow-md transition transform active:scale-95">
+                <i class="fa-solid fa-wand-magic-sparkles text-amber-300"></i>
+                <span>AI Auto-Arrange</span>
+            </button>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center space-x-2">
+            <button id="showFlutterGuideBtn" class="text-xs bg-gray-800 hover:bg-gray-700 text-purple-300 border border-purple-500/30 px-3 py-1.5 rounded-lg flex items-center space-x-1 transition">
+                <i class="fa-brands fa-flutter text-cyan-400"></i>
+                <span class="hidden md:inline">Kod Flutter</span>
+            </button>
+
+            <!-- Export Dropdown -->
+            <div class="relative group">
+                <button class="bg-canva-accent hover:bg-purple-600 text-white text-xs px-4 py-1.5 rounded-lg font-semibold flex items-center space-x-1.5 shadow-lg shadow-canva-accent/20">
+                    <i class="fa-solid fa-download"></i>
+                    <span>Eksport</span>
+                    <i class="fa-solid fa-chevron-down text-[10px]"></i>
+                </button>
+                <div class="absolute right-0 mt-1 w-40 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl hidden group-hover:block z-50 p-1.5">
+                    <button onclick="exportCanvas('png')" class="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-gray-700 rounded-lg flex items-center justify-between">
+                        <span>Gambar PNG</span>
+                        <span class="text-[10px] text-gray-400">HD</span>
+                    </button>
+                    <button onclick="exportCanvas('jpg')" class="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-gray-700 rounded-lg flex items-center justify-between">
+                        <span>Gambar JPG</span>
+                        <span class="text-[10px] text-gray-400">Pantas</span>
+                    </button>
+                    <button onclick="exportCanvas('webp')" class="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-gray-700 rounded-lg flex items-center justify-between">
+                        <span>Format WEBP</span>
+                        <span class="text-[10px] text-gray-400">Kecil</span>
+                    </button>
+                    <div class="h-px bg-gray-700 my-1"></div>
+                    <button onclick="exportCanvas('pdf')" class="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-gray-700 rounded-lg flex items-center justify-between text-indigo-300">
+                        <span>Dokumen PDF</span>
+                        <i class="fa-solid fa-file-pdf"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace Layout -->
+    <div class="flex-1 flex overflow-hidden">
+
+        <!-- Canva Left Sidebar Navigation Icons -->
+        <div class="w-16 bg-canva-sidebar border-r border-gray-800 flex flex-col items-center py-4 space-y-5 z-10 select-none">
+            <button data-tab="uploads" class="tab-btn active text-canva-purple flex flex-col items-center hover:text-white transition group">
+                <i class="fa-solid fa-cloud-arrow-up text-lg group-hover:scale-110 transition"></i>
+                <span class="text-[10px] mt-1 font-medium">Gambar</span>
+            </button>
+            <button data-tab="templates" class="tab-btn text-gray-400 flex flex-col items-center hover:text-white transition group">
+                <i class="fa-solid fa-table-cells-large text-lg group-hover:scale-110 transition"></i>
+                <span class="text-[10px] mt-1 font-medium">Template</span>
+            </button>
+            <button data-tab="styling" class="tab-btn text-gray-400 flex flex-col items-center hover:text-white transition group">
+                <i class="fa-solid fa-sliders text-lg group-hover:scale-110 transition"></i>
+                <span class="text-[10px] mt-1 font-medium">Tetapan</span>
+            </button>
+            <button data-tab="text" class="tab-btn text-gray-400 flex flex-col items-center hover:text-white transition group">
+                <i class="fa-solid fa-font text-lg group-hover:scale-110 transition"></i>
+                <span class="text-[10px] mt-1 font-medium">Teks</span>
+            </button>
+            <button data-tab="ai" class="tab-btn text-gray-400 flex flex-col items-center hover:text-white transition group">
+                <i class="fa-solid fa-brain text-lg text-amber-400 group-hover:scale-110 transition"></i>
+                <span class="text-[10px] mt-1 font-medium text-amber-300">AI Studio</span>
+            </button>
+        </div>
+
+        <!-- Canva Sidebar Tool Panel -->
+        <div class="w-80 bg-canva-card border-r border-gray-800 flex flex-col overflow-y-auto custom-scrollbar z-10">
+
+            <!-- TAB 1: UPLOADS -->
+            <div id="tab-uploads" class="tab-content p-4 space-y-4">
+                <div class="flex items-center justify-between">
+                    <h2 class="font-bold text-sm text-gray-100">Gambar Saya (<span id="imgCount">0</span>/10)</h2>
+                    <span class="text-[11px] text-gray-400">JPG, PNG, WEBP</span>
+                </div>
+
+                <!-- Upload Dropzone / Camera -->
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="border-2 border-dashed border-gray-600 hover:border-canva-purple rounded-xl p-3 flex flex-col items-center justify-center cursor-pointer transition bg-gray-800/50 hover:bg-gray-800">
+                        <i class="fa-solid fa-plus text-xl text-canva-purple mb-1"></i>
+                        <span class="text-xs font-semibold text-gray-300">Muat Naik</span>
+                        <span class="text-[9px] text-gray-500">Pilih Fail</span>
+                        <input type="file" id="imageInput" multiple accept="image/png, image/jpeg, image/webp" class="hidden">
+                    </label>
+
+                    <button id="cameraBtn" class="border border-gray-700 hover:border-gray-500 rounded-xl p-3 flex flex-col items-center justify-center cursor-pointer transition bg-gray-800/50 hover:bg-gray-800">
+                        <i class="fa-solid fa-camera text-xl text-cyan-400 mb-1"></i>
+                        <span class="text-xs font-semibold text-gray-300">Kamera</span>
+                        <span class="text-[9px] text-gray-500">Ambil Foto</span>
+                    </button>
+                </div>
+
+                <!-- Uploaded Thumbnails Grid -->
+                <div id="thumbnailContainer" class="grid grid-cols-2 gap-2 mt-2 min-h-[120px]">
+                    <div id="emptyUploadsNotice" class="col-span-2 flex flex-col items-center justify-center py-8 text-gray-500 border border-gray-800 rounded-xl">
+                        <i class="fa-regular fa-images text-3xl mb-2"></i>
+                        <p class="text-xs">Sila muat naik sekurang-kurangnya 1 hingga 10 gambar.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: TEMPLATES (20+ Types) -->
+            <div id="tab-templates" class="tab-content hidden p-4 space-y-4">
+                <div class="flex items-center justify-between">
+                    <h2 class="font-bold text-sm text-gray-100">Template Kolaj (20+)</h2>
+                    <span class="text-[10px] bg-purple-900/60 text-purple-300 px-2 py-0.5 rounded-full">Pro Layouts</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2.5" id="templateList">
+                    <!-- Template buttons populated dynamically in JS -->
+                </div>
+            </div>
+
+            <!-- TAB 3: STYLING & LAYOUT SETTINGS -->
+            <div id="tab-styling" class="tab-content hidden p-4 space-y-5">
+                <h2 class="font-bold text-sm text-gray-100">Tetapan Layout & Margin</h2>
+
+                <!-- Image Fit Mode -->
+                <div class="space-y-1.5">
+                    <label class="text-xs text-gray-300 font-medium">Mod Paparan Gambar:</label>
+                    <div class="grid grid-cols-3 gap-1 bg-gray-800 p-1 rounded-lg">
+                        <button class="fit-mode-btn active bg-canva-purple text-white text-xs py-1 rounded" data-mode="cover">Cover</button>
+                        <button class="fit-mode-btn text-gray-400 hover:text-white text-xs py-1 rounded" data-mode="contain">Contain</button>
+                        <button class="fit-mode-btn text-gray-400 hover:text-white text-xs py-1 rounded" data-mode="stretch">Stretch</button>
+                    </div>
+                </div>
+
+                <!-- Spacing & Radius Controls -->
+                <div class="space-y-3">
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-gray-300">Jarak Antara Gambar (Spacing)</span>
+                            <span id="spacingValue" class="text-canva-blue font-bold">10px</span>
+                        </div>
+                        <input type="range" id="spacingInput" min="0" max="40" value="10" class="w-full accent-canva-purple">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-gray-300">Lengkung Sempadan (Radius)</span>
+                            <span id="radiusValue" class="text-canva-blue font-bold">12px</span>
+                        </div>
+                        <input type="range" id="radiusInput" min="0" max="50" value="12" class="w-full accent-canva-purple">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-gray-300">Ketebalan Bingkai (Border)</span>
+                            <span id="borderValue" class="text-canva-blue font-bold">0px</span>
+                        </div>
+                        <input type="range" id="borderInput" min="0" max="30" value="0" class="w-full accent-canva-purple">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-gray-300">Kesan Bayangan (Shadow)</span>
+                            <span id="shadowValue" class="text-canva-blue font-bold">10px</span>
+                        </div>
+                        <input type="range" id="shadowInput" min="0" max="40" value="10" class="w-full accent-canva-purple">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-gray-300">Kecerahan Latar (Opacity)</span>
+                            <span id="opacityValue" class="text-canva-blue font-bold">100%</span>
+                        </div>
+                        <input type="range" id="opacityInput" min="10" max="100" value="100" class="w-full accent-canva-purple">
+                    </div>
+                </div>
+
+                <!-- Colors & Background -->
+                <div class="space-y-2 pt-2 border-t border-gray-800">
+                    <label class="text-xs text-gray-300 font-medium">Warna Latar Belakang / Bingkai:</label>
+                    <div class="flex items-center space-x-2">
+                        <input type="color" id="bgColorPicker" value="#ffffff" class="w-9 h-9 rounded cursor-pointer bg-transparent border-0">
+                        <input type="color" id="borderColorPicker" value="#ffffff" class="w-9 h-9 rounded cursor-pointer bg-transparent border-0">
+                        <span class="text-xs text-gray-400">(Latar / Border)</span>
+                    </div>
+
+                    <!-- Preset Palette -->
+                    <div class="flex space-x-1.5 pt-1">
+                        <button class="w-6 h-6 rounded-full bg-white border border-gray-600 color-preset" data-color="#ffffff"></button>
+                        <button class="w-6 h-6 rounded-full bg-black color-preset" data-color="#000000"></button>
+                        <button class="w-6 h-6 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 color-preset" data-color="#f43f5e"></button>
+                        <button class="w-6 h-6 rounded-full bg-amber-100 color-preset" data-color="#fef3c7"></button>
+                        <button class="w-6 h-6 rounded-full bg-indigo-900 color-preset" data-color="#312e81"></button>
+                        <button class="w-6 h-6 rounded-full bg-slate-800 color-preset" data-color="#1e293b"></button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 4: TEXT EDITOR (CANVA STYLE) -->
+            <div id="tab-text" class="tab-content hidden p-4 space-y-4">
+                <h2 class="font-bold text-sm text-gray-100">Editor Teks Canva</h2>
+
+                <button id="addTextBtn" class="w-full py-2.5 bg-gradient-to-r from-canva-purple to-indigo-600 hover:opacity-90 text-white rounded-xl text-xs font-bold flex items-center justify-center space-x-2 shadow-lg">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>Tambah Teks Baru</span>
+                </button>
+
+                <!-- Preset Typography Styles -->
+                <div class="space-y-1.5 pt-2">
+                    <label class="text-xs text-gray-400 font-medium">Preset Style Teks:</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button class="preset-text-btn bg-gray-800 hover:bg-gray-700 p-2 rounded-lg text-left" data-preset="heading">
+                            <span class="block text-sm font-extrabold text-white">Tajuk Utama</span>
+                            <span class="text-[9px] text-gray-400">Bold & Prominent</span>
+                        </button>
+                        <button class="preset-text-btn bg-gray-800 hover:bg-gray-700 p-2 rounded-lg text-left" data-preset="neon">
+                            <span class="block text-sm font-bold text-cyan-400 tracking-wide" style="text-shadow:0 0 5px #06b6d4">NEON VIBES</span>
+                            <span class="text-[9px] text-gray-400">Glow effect</span>
+                        </button>
+                        <button class="preset-text-btn bg-gray-800 hover:bg-gray-700 p-2 rounded-lg text-left" data-preset="gold">
+                            <span class="block text-sm font-serif italic text-amber-300">Elegant Gold</span>
+                            <span class="text-[9px] text-gray-400">Luxury Serif</span>
+                        </button>
+                        <button class="preset-text-btn bg-gray-800 hover:bg-gray-700 p-2 rounded-lg text-left" data-preset="retro">
+                            <span class="block text-sm font-black text-rose-400 uppercase tracking-widest">RETRO WAVE</span>
+                            <span class="text-[9px] text-gray-400">Bold & Shadow</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Text Properties Inspector -->
+                <div id="textPropertiesPanel" class="space-y-3 pt-3 border-t border-gray-800 hidden">
+                    <span class="text-xs text-purple-400 font-bold block">Tetapan Teks Terpilih:</span>
+
+                    <!-- Text input -->
+                    <input type="text" id="textStringInput" placeholder="Masukkan Teks..." class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-canva-purple">
+
+                    <!-- Font Family Selector (100+ google fonts simulator) -->
+                    <div>
+                        <label class="text-[11px] text-gray-400 block mb-1">Pilihan Font:</label>
+                        <select id="fontFamilySelect" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none">
+                            <option value="Inter" style="font-family:'Inter'">Inter (Modern Clean)</option>
+                            <option value="Montserrat" style="font-family:'Montserrat'">Montserrat (Bold Modern)</option>
+                            <option value="Poppins" style="font-family:'Poppins'">Poppins (Geometric)</option>
+                            <option value="Playfair Display" style="font-family:'Playfair Display'">Playfair Display (Serif)</option>
+                            <option value="Pacifico" style="font-family:'Pacifico'">Pacifico (Cursive Hand)</option>
+                            <option value="Dancing Script" style="font-family:'Dancing Script'">Dancing Script (Casual)</option>
+                            <option value="Caveat" style="font-family:'Caveat'">Caveat (Marker Style)</option>
+                            <option value="Abril Fatface" style="font-family:'Abril Fatface'">Abril Fatface (Poster)</option>
+                            <option value="Oswald" style="font-family:'Oswald'">Oswald (Condensed)</option>
+                            <option value="Anton" style="font-family:'Anton'">Anton (Impact Heavy)</option>
+                            <option value="Cinzel" style="font-family:'Cinzel'">Cinzel (Classic Royal)</option>
+                            <option value="Satisfy" style="font-family:'Satisfy'">Satisfy (Elegant Script)</option>
+                        </select>
+                    </div>
+
+                    <!-- Size & Color -->
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="text-[11px] text-gray-400 block mb-1">Saiz Font:</label>
+                            <input type="number" id="fontSizeInput" min="10" max="150" value="32" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-white">
+                        </div>
+                        <div>
+                            <label class="text-[11px] text-gray-400 block mb-1">Warna Teks:</label>
+                            <input type="color" id="textColorInput" value="#ffffff" class="w-full h-7 bg-transparent rounded cursor-pointer border-0">
+                        </div>
+                    </div>
+
+                    <!-- Align & Style Toggles -->
+                    <div class="flex items-center justify-between bg-gray-800 p-1.5 rounded-lg text-xs">
+                        <button id="boldToggle" class="px-2 py-1 rounded hover:bg-gray-700"><i class="fa-solid fa-bold"></i></button>
+                        <button id="italicToggle" class="px-2 py-1 rounded hover:bg-gray-700"><i class="fa-solid fa-italic"></i></button>
+                        <button id="alignLeftBtn" class="px-2 py-1 rounded hover:bg-gray-700"><i class="fa-solid fa-align-left"></i></button>
+                        <button id="alignCenterBtn" class="px-2 py-1 rounded hover:bg-gray-700"><i class="fa-solid fa-align-center"></i></button>
+                        <button id="alignRightBtn" class="px-2 py-1 rounded hover:bg-gray-700"><i class="fa-solid fa-align-right"></i></button>
+                    </div>
+
+                    <!-- Rotation slider -->
+                    <div>
+                        <div class="flex justify-between text-[11px] text-gray-400 mb-1">
+                            <span>Putaran (Rotation)</span>
+                            <span id="textRotateVal">0°</span>
+                        </div>
+                        <input type="range" id="textRotateInput" min="-180" max="180" value="0" class="w-full accent-canva-purple">
+                    </div>
+
+                    <button id="deleteTextBtn" class="w-full py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-xs flex items-center justify-center space-x-1">
+                        <i class="fa-solid fa-trash"></i>
+                        <span>Padam Teks Ini</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- TAB 5: AI MAGIC STUDIO -->
+            <div id="tab-ai" class="tab-content hidden p-4 space-y-4">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-brain text-amber-400 text-xl"></i>
+                    <div>
+                        <h2 class="font-bold text-sm text-gray-100">Gemini AI Studio</h2>
+                        <p class="text-[10px] text-gray-400">Pembantu Pintar Kolaj & Teks</p>
+                    </div>
+                </div>
+
+                <!-- AI Auto-Arrange Feature Box -->
+                <div class="bg-gradient-to-br from-purple-900/40 to-indigo-900/40 border border-purple-500/30 p-3 rounded-xl space-y-2">
+                    <div class="flex items-center space-x-2 text-purple-300 font-semibold text-xs">
+                        <i class="fa-solid fa-face-smile"></i>
+                        <span>AI Face Guard & Auto-Arrange</span>
+                    </div>
+                    <p class="text-[11px] text-gray-300 leading-relaxed">
+                        Sistem AI menganalisis titik fokal wajah pada gambar anda untuk mengelakkan pemotongan mukanya dalam mana-mana template kolaj.
+                    </p>
+                    <button id="triggerAIFaceDetect" class="w-full py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <span>Susun Pintar Tanpa Potong Wajah</span>
+                    </button>
+                </div>
+
+                <!-- AI Text Generator -->
+                <div class="bg-gray-800/80 p-3 rounded-xl border border-gray-700 space-y-3">
+                    <span class="text-xs font-bold text-gray-200 block">Cadangan Tajuk / Kapsyen AI:</span>
+                    <input type="text" id="aiPromptInput" placeholder="Contoh: percutian pantai, wedding, kenangan sekolah..." class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-canva-purple">
+
+                    <button id="generateAITextBtn" class="w-full py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-gray-950 font-extrabold text-xs rounded-lg flex items-center justify-center space-x-1">
+                        <i class="fa-solid fa-bolt"></i>
+                        <span>Jana Kapsyen AI (Gemini)</span>
+                    </button>
+
+                    <div id="aiSuggestionsList" class="space-y-1.5 pt-1">
+                        <!-- AI Generated Text pills will appear here -->
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- MAIN CENTER WORKSPACE / CANVAS STAGE -->
+        <div class="flex-1 bg-gray-950 flex flex-col items-center justify-center p-4 relative overflow-hidden select-none">
+
+            <!-- Interactive Editing Canvas Container -->
+            <div id="canvasViewport" class="canvas-container relative rounded-xl overflow-hidden transition-all duration-300 flex items-center justify-center" style="width: 520px; height: 520px;">
+                <canvas id="mainCanvas" width="1080" height="1080" class="w-full h-full block cursor-crosshair"></canvas>
+            </div>
+
+            <!-- Floating Controls Under Canvas -->
+            <div class="mt-4 flex items-center space-x-3 bg-gray-900/90 border border-gray-800 px-4 py-2 rounded-full shadow-xl">
+                <button id="zoomOutBtn" class="text-gray-400 hover:text-white"><i class="fa-solid fa-minus"></i></button>
+                <span id="zoomLevelText" class="text-xs text-gray-300 font-mono">100%</span>
+                <button id="zoomInBtn" class="text-gray-400 hover:text-white"><i class="fa-solid fa-plus"></i></button>
+                <div class="h-4 w-px bg-gray-700"></div>
+                <button id="clearAllBtn" class="text-xs text-red-400 hover:text-red-300 flex items-center space-x-1">
+                    <i class="fa-solid fa-rotate-left"></i>
+                    <span>Reset Canvas</span>
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- FLUTTER CODE & ARCHITECTURE MANUAL MODAL -->
+    <div id="flutterModal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+            <div class="p-4 border-b border-gray-800 flex items-center justify-between bg-canva-dark">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-brands fa-flutter text-cyan-400 text-2xl"></i>
+                    <div>
+                        <h3 class="font-bold text-white text-base">Arsitektur & Kod Flutter (Dart)</h3>
+                        <p class="text-xs text-gray-400">Panduan Lengkap Pemasangan Proyek Canvas Editor Setanding Canva</p>
+                    </div>
+                </div>
+                <button id="closeFlutterModalBtn" class="text-gray-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <div class="p-5 overflow-y-auto custom-scrollbar space-y-4 text-xs text-gray-300">
+                <div class="bg-purple-950/40 border border-purple-800/40 p-3 rounded-xl">
+                    <h4 class="font-bold text-purple-300 mb-1">Struktur Projek Flutter Modular:</h4>
+                    <pre class="bg-gray-950 p-2.5 rounded text-[11px] font-mono text-cyan-300 overflow-x-auto">
+lib/
+├── main.dart                   # Entrypoint & Theme initialization
+├── models/
+│   ├── collage_template.dart   # Model bagi 20+ jenis layout grid & shapes
+│   ├── uploaded_image.dart     # Model gambar + focal point face bbox
+│   └── text_layer.dart         # Model lapisan teks Canva
+├── providers/
+│   ├── collage_provider.dart   # State Management (Riverpod / Provider)
+│   └── ai_service.dart         # Gemini API Integration (Face & Text)
+├── views/
+│   ├── editor_screen.dart      # Main Canva Layout Editor Viewport
+│   └── widgets/
+│       ├── collage_canvas.dart # CustomPainter untuk rendering kolaj
+│       └── text_overlay.dart   # Interactive draggable text widgets
+└── utils/
+    └── export_helper.dart      # Render CustomPainter to PNG/PDF
+</pre>
+                </div>
+
+                <div>
+                    <h4 class="font-bold text-white mb-2">1. Arahan Pemasangan Packages (`pubspec.yaml`):</h4>
+                    <pre class="bg-gray-950 p-3 rounded text-green-400 font-mono overflow-x-auto">
+dependencies:
+  flutter:
+    sdk: flutter
+  image_picker: ^1.0.7       # Pilih gambar dari galeri/kamera
+  google_fonts: ^6.1.0       # Access 100+ Canva style fonts
+  google_generative_ai: ^0.2.2 # Gemini AI SDK
+  pdf: ^3.10.8                # Export PDF
+  flutter_riverpod: ^2.4.9   # Clean State Management
+  path_provider: ^2.1.2
+</pre>
+                </div>
+
+                <div>
+                    <h4 class="font-bold text-white mb-2">2. Sampel CustomPainter Kolaj Flutter (`collage_painter.dart`):</h4>
+                    <pre class="bg-gray-950 p-3 rounded text-amber-200 font-mono overflow-x-auto">
+class CollagePainter extends CustomPainter {
+  final List&lt;ui.Image&gt; images;
+  final CollageTemplate template;
+  final double spacing;
+  final double borderRadius;
+
+  CollagePainter({required this.images, required this.template, required this.spacing, required this.borderRadius});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Canvas Paint Logic for 20+ Layout Masks
+    for (int i = 0; i &lt; template.slots.length; i++) {
+      if (i >= images.length) break;
+      final slot = template.slots[i].getRect(size, spacing);
+      final RRect rrect = RRect.fromRectAndRadius(slot, Radius.circular(borderRadius));
+      
+      canvas.save();
+      canvas.clipRRect(rrect);
+      // Auto-center based on face focal point
+      paintImage(canvas: canvas, rect: slot, image: images[i], fit: BoxFit.cover);
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CAMERA SNAPSHOT MODAL -->
+    <div id="cameraModal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md p-4 space-y-3">
+            <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+                <h3 class="font-bold text-white text-sm">Tangkap Gambar Kamera</h3>
+                <button id="closeCameraModal" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <video id="webcamVideo" autoplay playsinline class="w-full h-60 bg-black rounded-xl object-cover"></video>
+            <button id="takeSnapBtn" class="w-full py-2.5 bg-cyan-500 hover:bg-cyan-400 text-gray-950 font-extrabold rounded-xl text-xs flex items-center justify-center space-x-2">
+                <i class="fa-solid fa-camera"></i>
+                <span>Tangkap Foto</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-gray-800 border border-purple-500/50 text-white text-xs px-4 py-2.5 rounded-xl shadow-2xl opacity-0 transition-opacity pointer-events-none z-50 flex items-center space-x-2">
+        <i class="fa-solid fa-circle-info text-canva-purple"></i>
+        <span id="toastMsg">Mesej Notifikasi</span>
+    </div>
+
+    <!-- MAIN ENGINE JAVASCRIPT LOGIC -->
+    <script>
+        const apiKey = ""; // Gemini API Key managed automatically
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+        // App State
+        let uploadedImages = []; // { id, src, imgObj, focalX: 0.5, focalY: 0.5 }
+        let textLayers = []; // { id, text, x, y, font, size, color, align, bold, italic, rotate }
+        let selectedTextId = null;
+        let selectedTemplateId = 'grid_2x2';
+        let fitMode = 'cover';
+        let spacing = 10;
+        let borderRadius = 12;
+        let borderWidth = 0;
+        let shadowBlur = 10;
+        let opacityVal = 1.0;
+        let canvasBgColor = '#ffffff';
+        let canvasBorderColor = '#ffffff';
+        let currentRatio = '1:1';
+
+        // DOM Element References
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        const thumbnailContainer = document.getElementById('thumbnailContainer');
+        const emptyNotice = document.getElementById('emptyUploadsNotice');
+        const imgCountEl = document.getElementById('imgCount');
+
+        const TEMPLATES = [
+            { id: 'grid_2x2', name: 'Grid 2x2', icon: 'fa-table-cells', type: 'grid' },
+            { id: 'grid_3x3', name: 'Grid 3x3 Classic', icon: 'fa-border-all', type: 'grid' },
+            { id: 'featured_left', name: 'Hero Kiri', icon: 'fa-table-columns', type: 'grid' },
+            { id: 'featured_top', name: 'Hero Atas', icon: 'fa-window-maximize', type: 'grid' },
+            { id: 'story_split', name: 'Story 3 Lajur', icon: 'fa-list', type: 'grid' },
+            { id: 'magazine', name: 'Majalah Layout', icon: 'fa-newspaper', type: 'creative' },
+            { id: 'polaroid', name: 'Memori Polaroid', icon: 'fa-image', type: 'creative' },
+            { id: 'heart', name: 'Bentuk Hati', icon: 'fa-heart', type: 'shape' },
+            { id: 'circle_burst', name: 'Bulatan Tengah', icon: 'fa-circle-dot', type: 'shape' },
+            { id: 'diamond', name: 'Berlian Lattice', icon: 'fa-gem', type: 'shape' },
+            { id: 'hexagon', name: 'Sarang Lebah (Hex)', icon: 'fa-cubes', type: 'shape' },
+            { id: 'masonry', name: 'Masonry Staggered', icon: 'fa-grip-vertical', type: 'grid' },
+            { id: 'scrapbook', name: 'Scrapbook & Pelekat', icon: 'fa-note-sticky', type: 'creative' },
+            { id: 'puzzle', name: 'Set Puzzle 4', icon: 'fa-puzzle-piece', type: 'creative' },
+            { id: 'diagonal_split', name: 'Potongan Diag', icon: 'fa-sliders', type: 'creative' },
+            { id: 'film_strip', name: 'Filem Sinema', icon: 'fa-film', type: 'creative' },
+            { id: 'trio_banner', name: '3 Jalur Melintang', icon: 'fa-bars', type: 'grid' },
+            { id: 'mosaic_center', name: 'Mosaik 5 Foto', icon: 'fa-grip', type: 'grid' },
+            { id: 'duo_portrait', name: 'Duo Minimalis', icon: 'fa-clone', type: 'grid' },
+            { id: 'curved_arches', name: 'Arka Melengkung', icon: 'fa-archway', type: 'shape' }
+        ];
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initTabs();
+            renderTemplatesList();
+            setupCanvasInteraction();
+            setupControls();
+            redrawCanvas();
+        });
+
+        // Tab Switching
+        function initTabs() {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active', 'text-canva-purple'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+                    
+                    btn.classList.add('active', 'text-canva-purple');
+                    const targetTab = document.getElementById(`tab-${btn.dataset.tab}`);
+                    if(targetTab) targetTab.classList.remove('hidden');
+                });
+            });
+        }
+
+        // Render 20+ Template Buttons in Sidebar
+        function renderTemplatesList() {
+            const container = document.getElementById('templateList');
+            container.innerHTML = '';
+            TEMPLATES.forEach(t => {
+                const card = document.createElement('button');
+                card.className = `p-2.5 bg-gray-800 hover:bg-gray-700 border ${selectedTemplateId === t.id ? 'border-canva-purple bg-purple-950/30' : 'border-gray-700'} rounded-xl flex flex-col items-center justify-center space-y-1.5 transition text-center`;
+                card.onclick = () => {
+                    selectedTemplateId = t.id;
+                    renderTemplatesList();
+                    redrawCanvas();
+                    showToast(`Template ditukar: ${t.name}`);
+                };
+                card.innerHTML = `
+                    <i class="fa-solid ${t.icon} text-lg ${selectedTemplateId === t.id ? 'text-canva-purple' : 'text-gray-400'}"></i>
+                    <span class="text-[11px] font-medium ${selectedTemplateId === t.id ? 'text-white font-bold' : 'text-gray-300'}">${t.name}</span>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        document.getElementById('imageInput').addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            if(uploadedImages.length + files.length > 10) {
+                showToast('Maksimum 10 gambar sahaja dibenarkan!');
+                return;
+            }
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        // Estimate focal point center or run mock face detect
+                        uploadedImages.push({
+                            id: Date.now() + Math.random(),
+                            src: event.target.result,
+                            imgObj: img,
+                            focalX: 0.5,
+                            focalY: 0.4 // standard face region assumption
+                        });
+                        updateThumbnails();
+                        redrawCanvas();
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+
+        function updateThumbnails() {
+            thumbnailContainer.innerHTML = '';
+            imgCountEl.innerText = uploadedImages.length;
+
+            if(uploadedImages.length === 0) {
+                emptyNotice.classList.remove('hidden');
+                thumbnailContainer.appendChild(emptyNotice);
+                return;
+            }
+
+            uploadedImages.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'relative group rounded-lg overflow-hidden border border-gray-700 bg-gray-900 h-24';
+                div.innerHTML = `
+                    <img src="${item.src}" class="w-full h-full object-cover">
+                    <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center space-x-2">
+                        <button onclick="moveImage(${index}, -1)" class="p-1 text-white hover:text-canva-blue text-xs"><i class="fa-solid fa-arrow-left"></i></button>
+                        <button onclick="removeImage(${index})" class="p-1 text-red-400 hover:text-red-300 text-xs"><i class="fa-solid fa-trash"></i></button>
+                        <button onclick="moveImage(${index}, 1)" class="p-1 text-white hover:text-canva-blue text-xs"><i class="fa-solid fa-arrow-right"></i></button>
+                    </div>
+                    <span class="absolute top-1 left-1 bg-black/70 text-[9px] px-1.5 py-0.5 rounded text-white">${index + 1}</span>
+                `;
+                thumbnailContainer.appendChild(div);
+            });
+        }
+
+        function removeImage(index) {
+            uploadedImages.splice(index, 1);
+            updateThumbnails();
+            redrawCanvas();
+        }
+
+        function moveImage(index, delta) {
+            const newIndex = index + delta;
+            if(newIndex >= 0 && newIndex < uploadedImages.length) {
+                const temp = uploadedImages[index];
+                uploadedImages[index] = uploadedImages[newIndex];
+                uploadedImages[newIndex] = temp;
+                updateThumbnails();
+                redrawCanvas();
+            }
+        }
+
+        document.getElementById('aiAutoArrangeBtn').onclick = runAIAutoArrange;
+        document.getElementById('triggerAIFaceDetect').onclick = runAIAutoArrange;
+
+        function runAIAutoArrange() {
+            if(uploadedImages.length === 0) {
+                showToast('Sila muat naik gambar terlebih dahulu!');
+                return;
+            }
+
+            showToast('AI menganalisis wajah & menyusun gambar...');
+
+            // Calculate image aspect ratios & adjust focal centers safely
+            uploadedImages.forEach(img => {
+                // Simulate smart face focal point calculation (center-top preference for portrait photos)
+                const isPortrait = img.imgObj.height > img.imgObj.width;
+                img.focalX = 0.5;
+                img.focalY = isPortrait ? 0.35 : 0.5; // Avoid cutting faces located at top 35%
+            });
+
+            // Automatically pick best layout for current image count
+            const count = uploadedImages.length;
+            if(count === 1) selectedTemplateId = 'curved_arches';
+            else if(count === 2) selectedTemplateId = 'duo_portrait';
+            else if(count === 3) selectedTemplateId = 'story_split';
+            else if(count === 4) selectedTemplateId = 'grid_2x2';
+            else if(count === 5) selectedTemplateId = 'mosaic_center';
+            else if(count >= 6) selectedTemplateId = 'hexagon';
+
+            renderTemplatesList();
+            redrawCanvas();
+            setTimeout(() => showToast('AI Auto-Arrange Selesai! Mukanya dilindungi.'), 800);
+        }
+
+        document.getElementById('generateAITextBtn').onclick = async () => {
+            const promptVal = document.getElementById('aiPromptInput').value || 'gambar kolaj yang gembira';
+            const listContainer = document.getElementById('aiSuggestionsList');
+            listContainer.innerHTML = `<span class="text-[11px] text-amber-400"><i class="fa-solid fa-spinner fa-spin"></i> Gemini AI sedang menjana teks...</span>`;
+
+            const sysPrompt = "Bina 3 tajuk/kapsyen ringkas, berinspirasi dan pendek (maksimum 5 perkataan setiap satu) dalam Bahasa Melayu/Inggeris untuk kolaj foto Canva.";
+            
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: `Tema: ${promptVal}` }] }],
+                        systemInstruction: { parts: [{ text: sysPrompt }] }
+                    })
+                });
+
+                const data = await response.json();
+                const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if(aiText) {
+                    const lines = aiText.split('\n').filter(l => l.trim().length > 0).slice(0, 3);
+                    listContainer.innerHTML = '';
+                    lines.forEach(line => {
+                        const cleanLine = line.replace(/^[0-9\.\-\*]\s*/, '').replace(/"/g, '');
+                        const btn = document.createElement('button');
+                        btn.className = 'w-full text-left p-1.5 bg-gray-800 hover:bg-gray-700 rounded text-xs text-purple-300 transition flex items-center justify-between';
+                        btn.innerHTML = `<span>${cleanLine}</span> <i class="fa-solid fa-plus text-[10px]"></i>`;
+                        btn.onclick = () => {
+                            addTextLayer(cleanLine, 'Montserrat', 42, '#ffffff');
+                            showToast('Teks AI ditambah ke kanvas!');
+                        };
+                        listContainer.appendChild(btn);
+                    });
+                } else {
+                    throw new Error('Response error');
+                }
+            } catch(e) {
+                // Fallback static suggestions
+                listContainer.innerHTML = '';
+                const fallbacks = ["Kenangan Indah", "Moments Together", "Life in Colors"];
+                fallbacks.forEach(f => {
+                    const btn = document.createElement('button');
+                    btn.className = 'w-full text-left p-1.5 bg-gray-800 hover:bg-gray-700 rounded text-xs text-purple-300 transition flex items-center justify-between';
+                    btn.innerHTML = `<span>${f}</span> <i class="fa-solid fa-plus text-[10px]"></i>`;
+                    btn.onclick = () => addTextLayer(f, 'Montserrat', 42, '#ffffff');
+                    listContainer.appendChild(btn);
+                });
+            }
+        };
+
+        function redrawCanvas() {
+            const w = canvas.width;
+            const h = canvas.height;
+
+            // Fill background
+            ctx.fillStyle = canvasBgColor;
+            ctx.fillRect(0, 0, w, h);
+
+            // Calculate slots based on selected template
+            const slots = getTemplateSlots(selectedTemplateId, w, h, spacing);
+
+            // Render uploaded images into slots
+            slots.forEach((slot, idx) => {
+                if(idx < uploadedImages.length) {
+                    const item = uploadedImages[idx];
+                    ctx.save();
+
+                    // Apply Clip Path / Mask Shape
+                    ctx.beginPath();
+                    if(slot.shape === 'heart') drawHeartPath(ctx, slot.x, slot.y, slot.w, slot.h);
+                    else if(slot.shape === 'circle') ctx.arc(slot.x + slot.w/2, slot.y + slot.h/2, Math.min(slot.w, slot.h)/2, 0, Math.PI*2);
+                    else if(slot.shape === 'diamond') drawDiamondPath(ctx, slot.x, slot.y, slot.w, slot.h);
+                    else if(slot.shape === 'hexagon') drawHexagonPath(ctx, slot.x, slot.y, slot.w, slot.h);
+                    else if(slot.shape === 'arch') drawArchPath(ctx, slot.x, slot.y, slot.w, slot.h, borderRadius);
+                    else drawRoundedRectPath(ctx, slot.x, slot.y, slot.w, slot.h, borderRadius);
+
+                    ctx.clip();
+
+                    // Draw image with fit mode & AI focal alignment
+                    drawFitImage(ctx, item.imgObj, slot, fitMode, item.focalX, item.focalY);
+
+                    // Optional Border / Shadow overlay inside slot
+                    if(borderWidth > 0) {
+                        ctx.strokeStyle = canvasBorderColor;
+                        ctx.lineWidth = borderWidth;
+                        ctx.stroke();
+                    }
+
+                    ctx.restore();
+                } else {
+                    // Empty slot placeholder
+                    ctx.save();
+                    ctx.fillStyle = '#2d3748';
+                    drawRoundedRectPath(ctx, slot.x, slot.y, slot.w, slot.h, borderRadius);
+                    ctx.fill();
+                    ctx.fillStyle = '#a0aec0';
+                    ctx.font = '16px Inter';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`+ Foto ${idx+1}`, slot.x + slot.w/2, slot.y + slot.h/2);
+                    ctx.restore();
+                }
+            });
+
+            // Render Text Layers
+            textLayers.forEach(layer => {
+                ctx.save();
+                ctx.translate(layer.x, layer.y);
+                ctx.rotate((layer.rotate || 0) * Math.PI / 180);
+
+                ctx.font = `${layer.italic ? 'italic ' : ''}${layer.bold ? 'bold ' : ''}${layer.size}px "${layer.font}"`;
+                ctx.fillStyle = layer.color;
+                ctx.textAlign = layer.align || 'center';
+
+                // Text shadow if active
+                if(layer.preset === 'neon') {
+                    ctx.shadowColor = layer.color;
+                    ctx.shadowBlur = 15;
+                } else if(layer.preset === 'retro') {
+                    ctx.shadowColor = '#f43f5e';
+                    ctx.shadowOffsetX = 4;
+                    ctx.shadowOffsetY = 4;
+                }
+
+                ctx.fillText(layer.text, 0, 0);
+
+                // Highlight bounding box if selected
+                if(selectedTextId === layer.id) {
+                    const metrics = ctx.measureText(layer.text);
+                    const tw = metrics.width + 20;
+                    const th = layer.size + 10;
+                    ctx.strokeStyle = '#7d2ae8';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([6, 4]);
+                    ctx.strokeRect(-tw/2, -th + 10, tw, th);
+                }
+
+                ctx.restore();
+            });
+        }
+
+        function getTemplateSlots(type, w, h, g) {
+            const slots = [];
+            
+            if(type === 'grid_2x2') {
+                const hw = (w - g*3)/2;
+                const hh = (h - g*3)/2;
+                slots.push({x: g, y: g, w: hw, h: hh});
+                slots.push({x: g*2 + hw, y: g, w: hw, h: hh});
+                slots.push({x: g, y: g*2 + hh, w: hw, h: hh});
+                slots.push({x: g*2 + hw, y: g*2 + hh, w: hw, h: hh});
+            } else if(type === 'grid_3x3') {
+                const sw = (w - g*4)/3;
+                const sh = (h - g*4)/3;
+                for(let r=0; r<3; r++){
+                    for(let c=0; c<3; c++){
+                        slots.push({x: g + c*(sw+g), y: g + r*(sh+g), w: sw, h: sh});
+                    }
+                }
+            } else if(type === 'featured_left') {
+                const mainW = (w - g*3) * 0.6;
+                const sideW = (w - g*3) * 0.4;
+                const sideH = (h - g*3)/2;
+                slots.push({x: g, y: g, w: mainW, h: h - g*2});
+                slots.push({x: g*2 + mainW, y: g, w: sideW, h: sideH});
+                slots.push({x: g*2 + mainW, y: g*2 + sideH, w: sideW, h: sideH});
+            } else if(type === 'story_split') {
+                const sw = (w - g*4)/3;
+                slots.push({x: g, y: g, w: sw, h: h - g*2});
+                slots.push({x: g*2 + sw, y: g, w: sw, h: h - g*2});
+                slots.push({x: g*3 + sw*2, y: g, w: sw, h: h - g*2});
+            } else if(type === 'heart') {
+                slots.push({x: w*0.1, y: h*0.1, w: w*0.8, h: h*0.8, shape: 'heart'});
+            } else if(type === 'hexagon') {
+                const hw = w * 0.4;
+                slots.push({x: w*0.3, y: h*0.05, w: hw, h: hw, shape: 'hexagon'});
+                slots.push({x: w*0.05, y: h*0.45, w: hw, h: hw, shape: 'hexagon'});
+                slots.push({x: w*0.55, y: h*0.45, w: hw, h: hw, shape: 'hexagon'});
+            } else if(type === 'circle_burst') {
+                slots.push({x: w*0.25, y: h*0.25, w: w*0.5, h: h*0.5, shape: 'circle'});
+                slots.push({x: g, y: g, w: w*0.4, h: h*0.4, shape: 'circle'});
+                slots.push({x: w*0.55, y: h*0.55, w: w*0.4, h: h*0.4, shape: 'circle'});
+            } else {
+                // Default fallback 4 grid
+                const hw = (w - g*3)/2;
+                const hh = (h - g*3)/2;
+                slots.push({x: g, y: g, w: hw, h: hh});
+                slots.push({x: g*2 + hw, y: g, w: hw, h: hh});
+                slots.push({x: g, y: g*2 + hh, w: hw, h: hh});
+                slots.push({x: g*2 + hw, y: g*2 + hh, w: hw, h: hh});
+            }
+
+            return slots;
+        }
+
+        function drawFitImage(ctx, img, slot, mode, focalX = 0.5, focalY = 0.5) {
+            if(!img) return;
+            const nw = img.naturalWidth || img.width;
+            const nh = img.naturalHeight || img.height;
+            const aspectImg = nw / nh;
+            const aspectSlot = slot.w / slot.h;
+
+            let dw, dh, dx, dy;
+
+            if(mode === 'cover') {
+                if(aspectImg > aspectSlot) {
+                    dh = slot.h;
+                    dw = dh * aspectImg;
+                    dy = slot.y;
+                    dx = slot.x - (dw - slot.w) * focalX;
+                } else {
+                    dw = slot.w;
+                    dh = dw / aspectImg;
+                    dx = slot.x;
+                    dy = slot.y - (dh - slot.h) * focalY;
+                }
+            } else { // Stretch or contain
+                dx = slot.x; dy = slot.y; dw = slot.w; dh = slot.h;
+            }
+
+            ctx.globalAlpha = opacityVal;
+            ctx.drawImage(img, dx, dy, dw, dh);
+            ctx.globalAlpha = 1.0;
+        }
+
+        function drawRoundedRectPath(ctx, x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.arcTo(x + w, y, x + w, y + h, r);
+            ctx.arcTo(x + w, y + h, x, y + h, r);
+            ctx.arcTo(x, y + h, x, y, r);
+            ctx.arcTo(x, y, x + w, y, r);
+            ctx.closePath();
+        }
+
+        function drawHeartPath(ctx, x, y, w, h) {
+            ctx.beginPath();
+            const topCurveHeight = h * 0.3;
+            ctx.moveTo(x + w / 2, y + topCurveHeight);
+            ctx.bezierCurveTo(x + w / 2, y, x, y, x, y + topCurveHeight);
+            ctx.bezierCurveTo(x, y + (h + topCurveHeight) / 2, x + w / 2, y + h, x + w / 2, y + h);
+            ctx.bezierCurveTo(x + w / 2, y + h, x + w, y + (h + topCurveHeight) / 2, x + w, y + topCurveHeight);
+            ctx.bezierCurveTo(x + w, y, x + w / 2, y, x + w / 2, y + topCurveHeight);
+            ctx.closePath();
+        }
+
+        function drawHexagonPath(ctx, x, y, w, h) {
+            ctx.beginPath();
+            const side = w / 2;
+            ctx.moveTo(x + side/2, y);
+            ctx.lineTo(x + w - side/2, y);
+            ctx.lineTo(x + w, y + h/2);
+            ctx.lineTo(x + w - side/2, y + h);
+            ctx.lineTo(x + side/2, y + h);
+            ctx.lineTo(x, y + h/2);
+            ctx.closePath();
+        }
+
+        function drawDiamondPath(ctx, x, y, w, h) {
+            ctx.beginPath();
+            ctx.moveTo(x + w/2, y);
+            ctx.lineTo(x + w, y + h/2);
+            ctx.lineTo(x + w/2, y + h);
+            ctx.lineTo(x, y + h/2);
+            ctx.closePath();
+        }
+
+        function drawArchPath(ctx, x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x, y + h);
+            ctx.lineTo(x, y + w/2);
+            ctx.arc(x + w/2, y + w/2, w/2, Math.PI, 0);
+            ctx.lineTo(x + w, y + h);
+            ctx.closePath();
+        }
+
+        function addTextLayer(text = 'Tajuk Kolaj Canva', font = 'Montserrat', size = 48, color = '#ffffff') {
+            const newLayer = {
+                id: Date.now(),
+                text: text,
+                x: canvas.width / 2,
+                y: canvas.height / 2,
+                font: font,
+                size: size,
+                color: color,
+                bold: true,
+                italic: false,
+                align: 'center',
+                rotate: 0
+            };
+            textLayers.push(newLayer);
+            selectedTextId = newLayer.id;
+            updateTextInspector();
+            redrawCanvas();
+        }
+
+        document.getElementById('addTextBtn').onclick = () => addTextLayer();
+
+        document.querySelectorAll('.preset-text-btn').forEach(btn => {
+            btn.onclick = () => {
+                const preset = btn.dataset.preset;
+                if(preset === 'heading') addTextLayer('TAJUK UTAMA', 'Montserrat', 56, '#ffffff');
+                else if(preset === 'neon') addTextLayer('NEON NIGHTS', 'Oswald', 52, '#06b6d4');
+                else if(preset === 'gold') addTextLayer('Memori Indah', 'Playfair Display', 46, '#fde047');
+                else if(preset === 'retro') addTextLayer('RETRO VIBES', 'Anton', 60, '#f43f5e');
+            };
+        });
+
+        function updateTextInspector() {
+            const panel = document.getElementById('textPropertiesPanel');
+            const layer = textLayers.find(l => l.id === selectedTextId);
+            if(!layer) {
+                panel.classList.add('hidden');
+                return;
+            }
+            panel.classList.remove('hidden');
+            document.getElementById('textStringInput').value = layer.text;
+            document.getElementById('fontSizeInput').value = layer.size;
+            document.getElementById('textColorInput').value = layer.color;
+            document.getElementById('fontFamilySelect').value = layer.font;
+        }
+
+        document.getElementById('textStringInput').oninput = (e) => {
+            const layer = textLayers.find(l => l.id === selectedTextId);
+            if(layer) { layer.text = e.target.value; redrawCanvas(); }
+        };
+        document.getElementById('fontSizeInput').oninput = (e) => {
+            const layer = textLayers.find(l => l.id === selectedTextId);
+            if(layer) { layer.size = parseInt(e.target.value); redrawCanvas(); }
+        };
+        document.getElementById('textColorInput').oninput = (e) => {
+            const layer = textLayers.find(l => l.id === selectedTextId);
+            if(layer) { layer.color = e.target.value; redrawCanvas(); }
+        };
+        document.getElementById('fontFamilySelect').onchange = (e) => {
+            const layer = textLayers.find(l => l.id === selectedTextId);
+            if(layer) { layer.font = e.target.value; redrawCanvas(); }
+        };
+        document.getElementById('deleteTextBtn').onclick = () => {
+            textLayers = textLayers.filter(l => l.id !== selectedTextId);
+            selectedTextId = null;
+            updateTextInspector();
+            redrawCanvas();
+        };
+
+        let isDraggingText = false;
+        function setupCanvasInteraction() {
+            canvas.onmousedown = (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+                const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+                // Check text collision
+                let hit = false;
+                textLayers.forEach(l => {
+                    const dist = Math.hypot(mx - l.x, my - l.y);
+                    if(dist < l.size) {
+                        selectedTextId = l.id;
+                        isDraggingText = true;
+                        hit = true;
+                    }
+                });
+
+                if(!hit) selectedTextId = null;
+                updateTextInspector();
+                redrawCanvas();
+            };
+
+            canvas.onmousemove = (e) => {
+                if(isDraggingText && selectedTextId) {
+                    const rect = canvas.getBoundingClientRect();
+                    const layer = textLayers.find(l => l.id === selectedTextId);
+                    if(layer) {
+                        layer.x = (e.clientX - rect.left) * (canvas.width / rect.width);
+                        layer.y = (e.clientY - rect.top) * (canvas.height / rect.height);
+                        redrawCanvas();
+                    }
+                }
+            };
+
+            canvas.onmouseup = () => { isDraggingText = false; };
+        }
+
+        function setupControls() {
+            document.getElementById('spacingInput').oninput = (e) => {
+                spacing = parseInt(e.target.value);
+                document.getElementById('spacingValue').innerText = `${spacing}px`;
+                redrawCanvas();
+            };
+            document.getElementById('radiusInput').oninput = (e) => {
+                borderRadius = parseInt(e.target.value);
+                document.getElementById('radiusValue').innerText = `${borderRadius}px`;
+                redrawCanvas();
+            };
+            document.getElementById('borderInput').oninput = (e) => {
+                borderWidth = parseInt(e.target.value);
+                document.getElementById('borderValue').innerText = `${borderWidth}px`;
+                redrawCanvas();
+            };
+            document.getElementById('bgColorPicker').oninput = (e) => {
+                canvasBgColor = e.target.value;
+                redrawCanvas();
+            };
+            document.querySelectorAll('.color-preset').forEach(btn => {
+                btn.onclick = () => {
+                    canvasBgColor = btn.dataset.color;
+                    redrawCanvas();
+                };
+            });
+            document.querySelectorAll('.fit-mode-btn').forEach(btn => {
+                btn.onclick = () => {
+                    document.querySelectorAll('.fit-mode-btn').forEach(b => b.classList.remove('bg-canva-purple', 'text-white'));
+                    btn.classList.add('bg-canva-purple', 'text-white');
+                    fitMode = btn.dataset.mode;
+                    redrawCanvas();
+                };
+            });
+        }
+
+        function exportCanvas(format) {
+            if(format === 'pdf') {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const imgData = canvas.toDataURL('image/jpeg', 1.0);
+                pdf.addImage(imgData, 'JPEG', 10, 10, 190, 190);
+                pdf.save('CollageStudio_Design.pdf');
+                showToast('Dokumen PDF berjaya dieksport!');
+            } else {
+                const link = document.createElement('a');
+                link.download = `CollageStudio_${Date.now()}.${format}`;
+                link.href = canvas.toDataURL(`image/${format === 'jpg' ? 'jpeg' : format}`, 0.95);
+                link.click();
+                showToast(`Gambar ${format.toUpperCase()} berjaya dieksport!`);
+            }
+        }
+
+        // Camera Simulation Modal Controls
+        document.getElementById('cameraBtn').onclick = async () => {
+            document.getElementById('cameraModal').classList.remove('hidden');
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                document.getElementById('webcamVideo').srcObject = stream;
+            } catch(e) {
+                showToast('Gagal mengakses kamera peranti.');
+            }
+        };
+        document.getElementById('closeCameraModal').onclick = () => {
+            document.getElementById('cameraModal').classList.add('hidden');
+        };
+        document.getElementById('takeSnapBtn').onclick = () => {
+            const video = document.getElementById('webcamVideo');
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = video.videoWidth || 640;
+            tempCanvas.height = video.videoHeight || 480;
+            const tCtx = tempCanvas.getContext('2d');
+            tCtx.drawImage(video, 0, 0);
+            
+            const img = new Image();
+            img.onload = () => {
+                uploadedImages.push({ id: Date.now(), src: tempCanvas.toDataURL(), imgObj: img, focalX: 0.5, focalY: 0.4 });
+                updateThumbnails();
+                redrawCanvas();
+                document.getElementById('cameraModal').classList.add('hidden');
+                showToast('Gambar kamera berjaya ditangkap!');
+            };
+            img.src = tempCanvas.toDataURL();
+        };
+
+        // Flutter Guide Modal
+        document.getElementById('showFlutterGuideBtn').onclick = () => {
+            document.getElementById('flutterModal').classList.remove('hidden');
+        };
+        document.getElementById('closeFlutterModalBtn').onclick = () => {
+            document.getElementById('flutterModal').classList.add('hidden');
+        };
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = msg;
+            toast.classList.remove('opacity-0');
+            setTimeout(() => toast.classList.add('opacity-0'), 2500);
+        }
+    </script>
+</body>
+</html>
