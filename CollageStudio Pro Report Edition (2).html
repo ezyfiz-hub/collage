@@ -1,0 +1,1469 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CollageStudio Pro - Laporan Bergambar & Layout Canva</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Poppins:wght@400;600;700&family=Playfair+Display:wght@700&family=Roboto:wght@400;500;700&family=Oswald:wght@500;700&family=Caveat:wght@700&display=swap" rel="stylesheet">
+    <!-- jsPDF for PDF Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- html2canvas for High-Res Canvas Rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            touch-action: manipulation;
+        }
+        body, html {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: 'Poppins', sans-serif;
+        }
+        
+        /* Canvas Outer Area */
+        #canvas-outer-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+            background: radial-gradient(circle, #1e293b 10%, #0f172a 90%);
+            width: 100%;
+            height: 100%;
+            padding: 20px;
+        }
+
+        #collage-canvas {
+            position: relative;
+            background-color: #ffffff;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+            transition: transform 0.1s ease-out;
+            transform-origin: center center;
+        }
+
+        /* Custom Scrollbar */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Interactive Grid Items */
+        .grid-cell {
+            position: absolute;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .grid-cell-inner {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            border: 1px dashed #cbd5e1;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .grid-cell.active .grid-cell-inner {
+            border: 2px solid #6366f1 !important;
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+        }
+        
+        .grid-cell.swap-selected .grid-cell-inner {
+            border: 3px solid #f59e0b !important;
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.6);
+        }
+
+        .grid-cell.drag-over .grid-cell-inner {
+            border: 3px solid #10b981 !important;
+            background-color: rgba(16, 185, 129, 0.2);
+        }
+
+        .grid-cell img {
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: block;
+        }
+
+        /* Canvas Overlays */
+        .draggable-overlay {
+            position: absolute;
+            cursor: move;
+            touch-action: none;
+            border: 2px dashed transparent;
+            padding: 4px;
+            box-sizing: border-box;
+            user-select: none;
+            z-index: 20;
+        }
+        .draggable-overlay.selected {
+            border-color: #6366f1;
+            background-color: rgba(99, 102, 241, 0.1);
+        }
+
+        /* Overlay Control Handles */
+        .overlay-handle {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            color: white;
+            z-index: 30;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+            cursor: pointer;
+        }
+        .overlay-handle.resize {
+            bottom: -12px;
+            right: -12px;
+            background-color: #6366f1;
+            cursor: nwse-resize;
+            touch-action: none;
+        }
+        .overlay-handle.delete {
+            top: -12px;
+            right: -12px;
+            background-color: #ef4444;
+        }
+
+        /* Camera Modal Overlay */
+        #camera-modal {
+            z-index: 100;
+        }
+
+        /* Toast Notifications */
+        #toast-msg {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen w-screen overflow-hidden select-none bg-slate-950">
+
+    <!-- Toast Alert -->
+    <div id="toast-msg" class="fixed top-16 left-1/2 transform -translate-x-1/2 bg-indigo-600 text-white text-xs px-4 py-2 rounded-full shadow-xl opacity-0 pointer-events-none z-50 flex items-center space-x-2">
+        <i class="fa-solid fa-circle-info"></i>
+        <span id="toast-text">Mesej Notifikasi</span>
+    </div>
+
+    <!-- 1. FIXED TOP HEADER BAR -->
+    <header class="h-14 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-3 sm:px-6 z-40 shrink-0">
+        <!-- Logo & Title -->
+        <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-lg flex items-center justify-center font-bold text-white shadow-lg">
+                <i class="fa-solid fa-border-all text-sm"></i>
+            </div>
+            <span class="font-bold text-base sm:text-lg tracking-wide bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-300">
+                CollageStudio <span class="text-xs px-2 py-0.5 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full font-sans">Pro</span>
+            </span>
+        </div>
+
+        <!-- Undo, Redo, Zoom Tools -->
+        <div class="flex items-center space-x-1 sm:space-x-2 bg-slate-800/90 p-1 rounded-xl border border-slate-700">
+            <button id="btn-undo" onclick="undoAction()" title="Batal (Undo)" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-700 text-slate-300 active:bg-slate-600">
+                <i class="fa-solid fa-rotate-left text-sm"></i>
+            </button>
+            <button id="btn-redo" onclick="redoAction()" title="Semula (Redo)" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-700 text-slate-300 active:bg-slate-600">
+                <i class="fa-solid fa-rotate-right text-sm"></i>
+            </button>
+            <div class="h-4 w-[1px] bg-slate-700 mx-1"></div>
+            <button onclick="adjustZoom(-0.1)" title="Zoom Out" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-700 text-slate-300 active:bg-slate-600">
+                <i class="fa-solid fa-minus text-xs"></i>
+            </button>
+            <span id="zoom-label" class="text-xs font-mono px-1 w-10 text-center font-bold text-indigo-400">100%</span>
+            <button onclick="adjustZoom(0.1)" title="Zoom In" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-700 text-slate-300 active:bg-slate-600">
+                <i class="fa-solid fa-plus text-xs"></i>
+            </button>
+            <button onclick="resetZoomFit()" title="Reset Auto-Fit" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-700 text-indigo-400 active:bg-slate-600">
+                <i class="fa-solid fa-expand text-xs"></i>
+            </button>
+        </div>
+
+        <!-- Quick Action & Export Button -->
+        <div class="flex items-center space-x-2">
+            <button onclick="clearCanvasPrompt()" class="text-xs px-2.5 py-1.5 bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/20">
+                <i class="fa-solid fa-trash-can mr-1"></i><span class="hidden sm:inline">Padam Semua</span>
+            </button>
+            <button onclick="openPanel('export')" class="text-xs sm:text-sm px-3.5 py-1.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold rounded-lg shadow-md flex items-center space-x-1.5">
+                <i class="fa-solid fa-download"></i>
+                <span>Eksport</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- 2. MAIN PREVIEW CANVAS AREA -->
+    <main id="canvas-outer-container">
+        <!-- Interactive Canvas Workspace -->
+        <div id="collage-canvas">
+            <!-- Grid Cells Layer -->
+            <div id="grid-layer" class="absolute inset-0 w-full h-full"></div>
+            <!-- Overlays Layer (Text & Stickers) -->
+            <div id="overlay-layer" class="absolute inset-0 w-full h-full pointer-events-none"></div>
+        </div>
+
+        <!-- Floating Info Badge -->
+        <div class="absolute top-3 left-3 bg-slate-900/80 backdrop-blur border border-slate-700/60 px-3 py-1.5 rounded-full text-[11px] text-slate-300 flex items-center space-x-2 shadow-lg pointer-events-none z-10">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span id="canvas-info-badge">Nisbah: A4 Portrait (210x297mm)</span>
+        </div>
+    </main>
+
+    <!-- 3. SLIDE-UP BOTTOM CONTROL PANELS -->
+    <div id="bottom-sheet-panel" class="fixed bottom-16 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-4 z-30 transition-transform duration-300 transform translate-y-full max-h-[60vh] overflow-y-auto no-scrollbar shadow-2xl">
+        <div class="flex items-center justify-between mb-3 border-b border-slate-800 pb-2">
+            <h3 id="panel-title" class="font-bold text-xs sm:text-sm text-indigo-400 uppercase tracking-wider flex items-center">
+                <i class="fa-solid fa-sliders mr-2"></i> Tetapan
+            </h3>
+            <button onclick="closePanel()" class="text-slate-400 hover:text-white w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-800">
+                <i class="fa-solid fa-xmark text-base"></i>
+            </button>
+        </div>
+
+        <!-- Panel Contents -->
+        <div id="panel-contents">
+            
+            <!-- A. PHOTOS & CAMERA PANEL -->
+            <div id="tab-content-photos" class="panel-division hidden space-y-4">
+                <div class="grid grid-cols-2 gap-3">
+                    <label class="flex flex-col items-center justify-center p-4 border-2 border-dashed border-indigo-500/40 rounded-xl bg-indigo-500/5 hover:bg-indigo-500/10 cursor-pointer transition-all">
+                        <i class="fa-solid fa-cloud-arrow-up text-2xl text-indigo-400 mb-1"></i>
+                        <span class="text-xs font-semibold text-slate-200">Muat Naik Gambar</span>
+                        <span class="text-[10px] text-slate-400">JPG, PNG, WEBP (Max 12)</span>
+                        <input type="file" id="input-upload-files" multiple accept="image/jpeg,image/png,image/webp" class="hidden" onchange="handleFileUpload(event)">
+                    </label>
+
+                    <button onclick="openCameraModal()" class="flex flex-col items-center justify-center p-4 border-2 border-dashed border-purple-500/40 rounded-xl bg-purple-500/5 hover:bg-purple-500/10 transition-all">
+                        <i class="fa-solid fa-camera text-2xl text-purple-400 mb-1"></i>
+                        <span class="text-xs font-semibold text-slate-200">Ambil Foto HD</span>
+                        <span class="text-[10px] text-slate-400">Kamera Depan / Belakang</span>
+                    </button>
+                </div>
+
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-medium text-slate-400">Galeri Foto Disimpan (Boleh diseret ke petak):</span>
+                        <span id="photo-count-badge" class="text-xs bg-slate-800 px-2 py-0.5 rounded text-indigo-400 font-mono">0 / 12</span>
+                    </div>
+                    <div id="photo-thumbnails-list" class="flex space-x-2 overflow-x-auto pb-2 no-scrollbar min-h-[75px] bg-slate-950/60 p-2 rounded-xl border border-slate-800">
+                        <p class="text-xs text-slate-500 m-auto">Tiada gambar dimuat naik lagi.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- B. RATIO & SIZES PANEL -->
+            <div id="tab-content-ratio" class="panel-division hidden space-y-3">
+                <p class="text-xs text-slate-400">Pilih Nisbah & Format Cetakan / Dokumen:</p>
+                <div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    <button onclick="setAspectRatio('A4 Portrait', 1/1.414)" class="p-2.5 bg-slate-800 hover:bg-indigo-600/30 border border-slate-700 rounded-xl flex flex-col items-center">
+                        <i class="fa-regular fa-file-pdf text-indigo-400 text-lg mb-1"></i>
+                        <span class="text-xs font-semibold">A4 Portrait</span>
+                        <span class="text-[9px] text-slate-400">Cetakan Dokumen</span>
+                    </button>
+                    <button onclick="setAspectRatio('A4 Landscape', 1.414)" class="p-2.5 bg-slate-800 hover:bg-indigo-600/30 border border-slate-700 rounded-xl flex flex-col items-center">
+                        <i class="fa-regular fa-file-pdf text-purple-400 text-lg mb-1 rotate-90"></i>
+                        <span class="text-xs font-semibold">A4 Landscape</span>
+                        <span class="text-[9px] text-slate-400">Laporan Meja</span>
+                    </button>
+                    <button onclick="setAspectRatio('A3 Poster', 1/1.414)" class="p-2.5 bg-slate-800 hover:bg-indigo-600/30 border border-slate-700 rounded-xl flex flex-col items-center">
+                        <i class="fa-solid fa-scroll text-emerald-400 text-lg mb-1"></i>
+                        <span class="text-xs font-semibold">A3 Poster</span>
+                        <span class="text-[9px] text-slate-400">Saiz Besar</span>
+                    </button>
+                    <button onclick="setAspectRatio('16:9 Slide', 16/9)" class="p-2.5 bg-slate-800 hover:bg-indigo-600/30 border border-slate-700 rounded-xl flex flex-col items-center">
+                        <i class="fa-solid fa-desktop text-amber-400 text-lg mb-1"></i>
+                        <span class="text-xs font-semibold">16:9 Presentation</span>
+                        <span class="text-[9px] text-slate-400">Skrin / Slaid</span>
+                    </button>
+                    <button onclick="setAspectRatio('4:3 Standard', 4/3)" class="p-2.5 bg-slate-800 hover:bg-indigo-600/30 border border-slate-700 rounded-xl flex flex-col items-center">
+                        <i class="fa-solid fa-tv text-pink-400 text-lg mb-1"></i>
+                        <span class="text-xs font-semibold">4:3 Standard</span>
+                        <span class="text-[9px] text-slate-400">Galeri TV</span>
+                    </button>
+                    <button onclick="setAspectRatio('1:1 Segi Empat', 1)" class="p-2.5 bg-slate-800 hover:bg-indigo-600/30 border border-slate-700 rounded-xl flex flex-col items-center">
+                        <i class="fa-regular fa-square text-cyan-400 text-lg mb-1"></i>
+                        <span class="text-xs font-semibold">1:1 Square</span>
+                        <span class="text-[9px] text-slate-400">Social Media</span>
+                    </button>
+                    <button onclick="setAspectRatio('3:4 Portrait', 3/4)" class="p-2.5 bg-slate-800 hover:bg-indigo-600/30 border border-slate-700 rounded-xl flex flex-col items-center">
+                        <i class="fa-solid fa-mobile-screen text-teal-400 text-lg mb-1"></i>
+                        <span class="text-xs font-semibold">3:4 Potret</span>
+                        <span class="text-[9px] text-slate-400">Foto Album</span>
+                    </button>
+                    <button onclick="setAspectRatio('9:16 Story', 9/16)" class="p-2.5 bg-slate-800 hover:bg-indigo-600/30 border border-slate-700 rounded-xl flex flex-col items-center">
+                        <i class="fa-solid fa-mobile text-rose-400 text-lg mb-1"></i>
+                        <span class="text-xs font-semibold">9:16 Mobile</span>
+                        <span class="text-[9px] text-slate-400">Status / Story</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- C. LAYOUTS GRID PANEL -->
+            <div id="tab-content-layouts" class="panel-division hidden space-y-3">
+                <p class="text-xs text-slate-400">Pilih Susunan Grid Laporan (25+ Pilihan Layout Rasmi):</p>
+                <div id="layouts-grid-container" class="grid grid-cols-3 sm:grid-cols-6 gap-2 max-h-52 overflow-y-auto pr-1">
+                    <!-- Dynamic Layout Presets Injected Here -->
+                </div>
+            </div>
+
+            <!-- D. EDIT CELL & IMAGE PANEL -->
+            <div id="tab-content-editimage" class="panel-division hidden space-y-3">
+                <div class="p-3 bg-slate-800/80 rounded-xl border border-slate-700 space-y-3">
+                    <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+                        <span id="edit-cell-label" class="text-xs font-bold text-amber-400">Pilih Petak Untuk Edit Gambar</span>
+                        <span class="text-[10px] text-slate-400">Sentuh petak pada kanvas dahulu</span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-[10px] text-slate-300 block mb-1">Zoom Gambar: <span id="val-img-zoom" class="text-indigo-400">1.0x</span></label>
+                            <input type="range" id="slider-img-zoom" min="1.0" max="3.0" step="0.05" value="1.0" oninput="updateActiveImageProp('zoom', parseFloat(this.value))" class="w-full accent-indigo-500">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-slate-300 block mb-1">Gaya Fit Gambar</label>
+                            <select id="select-img-fit" onchange="updateActiveImageProp('fit', this.value)" class="w-full bg-slate-900 text-xs text-white p-1.5 rounded border border-slate-700">
+                                <option value="cover">Isi Penuh (Cover)</option>
+                                <option value="contain">Muat Penuh (Contain)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-[10px] text-slate-300 block mb-1">Anjak Horisontal (X)</label>
+                            <input type="range" id="slider-img-panx" min="-100" max="100" value="0" oninput="updateActiveImageProp('panX', parseInt(this.value))" class="w-full accent-indigo-500">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-slate-300 block mb-1">Anjak Vertikal (Y)</label>
+                            <input type="range" id="slider-img-pany" min="-100" max="100" value="0" oninput="updateActiveImageProp('panY', parseInt(this.value))" class="w-full accent-indigo-500">
+                        </div>
+                    </div>
+
+                    <div class="flex space-x-2 pt-1 border-t border-slate-700/60">
+                        <button onclick="assignPhotoToActiveCell()" class="flex-1 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold">
+                            <i class="fa-solid fa-images mr-1"></i> Tukar Foto Petak Ini
+                        </button>
+                        <button onclick="removeImageFromCell()" class="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 rounded text-xs font-semibold">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- E. CAPTIONS PER PHOTO PANEL -->
+            <div id="tab-content-captions" class="panel-division hidden space-y-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-slate-300 font-medium">Tetapan Kedudukan Kapsyen Gambar:</span>
+                    <div class="flex bg-slate-800 p-1 rounded-lg border border-slate-700 text-xs">
+                        <button id="cap-mode-in" onclick="setCaptionMode('inside')" class="px-2.5 py-1 rounded-md font-semibold bg-indigo-600 text-white">Dalam Foto</button>
+                        <button id="cap-mode-out" onclick="setCaptionMode('outside')" class="px-2.5 py-1 rounded-md font-semibold text-slate-400">Luar Foto</button>
+                    </div>
+                </div>
+
+                <div id="caption-inputs-list" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    <!-- Injected dynamically based on active layout -->
+                </div>
+            </div>
+
+            <!-- F. TEXT CANVA EDITOR PANEL -->
+            <div id="tab-content-text" class="panel-division hidden space-y-3">
+                <div class="flex items-center space-x-2">
+                    <button onclick="addNewTextOverlay()" class="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-xs flex items-center justify-center space-x-1 shadow">
+                        <i class="fa-solid fa-plus mr-1"></i>
+                        <span>Tambah Teks Tajuk / Catatan</span>
+                    </button>
+                </div>
+
+                <!-- Live Text Input & Customization -->
+                <div class="space-y-3 pt-2 border-t border-slate-800">
+                    <div>
+                        <label class="text-[10px] text-slate-400 block mb-1">Kandungan Teks Terpilih:</label>
+                        <textarea id="text-content-input" rows="2" oninput="updateSelectedTextProp('content', this.value)" placeholder="Pilih atau tambah teks pada kanvas untuk mengedit..." class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-2 text-xs focus:outline-none focus:border-indigo-500"></textarea>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="text-[10px] text-slate-400 block mb-1">Gaya Fon</label>
+                            <select id="text-font-family" onchange="updateSelectedTextProp('fontFamily', this.value)" class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-2 text-xs">
+                                <option value="Montserrat">Montserrat</option>
+                                <option value="Poppins">Poppins</option>
+                                <option value="Playfair Display">Playfair Display</option>
+                                <option value="Oswald">Oswald</option>
+                                <option value="Caveat">Caveat (Tulisan Tangan)</option>
+                                <option value="Roboto">Roboto</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-slate-400 block mb-1">Saiz Fon (px)</label>
+                            <input type="number" id="text-font-size" value="28" min="10" max="120" onchange="updateSelectedTextProp('fontSize', parseInt(this.value))" class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-2 text-xs">
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between space-x-2">
+                        <div class="flex items-center space-x-2">
+                            <div>
+                                <label class="text-[10px] text-slate-400 block mb-1">Teks</label>
+                                <input type="color" id="text-color" value="#ffffff" onchange="updateSelectedTextProp('color', this.value)" class="w-9 h-8 bg-slate-800 rounded border border-slate-700 cursor-pointer">
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-slate-400 block mb-1">Latar</label>
+                                <input type="color" id="text-bg-color" value="#000000" onchange="updateSelectedTextProp('bgColor', this.value)" class="w-9 h-8 bg-slate-800 rounded border border-slate-700 cursor-pointer">
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-1 pt-3">
+                            <button onclick="toggleSelectedTextBold()" class="p-2 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700"><i class="fa-solid fa-bold"></i></button>
+                            <button onclick="updateSelectedTextProp('align', 'left')" class="p-2 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700"><i class="fa-solid fa-align-left"></i></button>
+                            <button onclick="updateSelectedTextProp('align', 'center')" class="p-2 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700"><i class="fa-solid fa-align-center"></i></button>
+                            <button onclick="updateSelectedTextProp('align', 'right')" class="p-2 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700"><i class="fa-solid fa-align-right"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- G. STICKER & LOGO OVERLAY PANEL -->
+            <div id="tab-content-sticker" class="panel-division hidden space-y-3">
+                <p class="text-xs text-slate-400">Muat Naik Logo Jabatan / Lencana / Cap Rasmi (PNG Telus):</p>
+                <label class="flex items-center justify-center p-3 border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl bg-slate-800/50 cursor-pointer">
+                    <i class="fa-solid fa-shield-halved text-indigo-400 text-lg mr-2"></i>
+                    <span class="text-xs font-semibold text-slate-200">Muat Naik Logo / Sticker PNG</span>
+                    <input type="file" accept="image/png,image/webp" onchange="handleStickerUpload(event)" class="hidden">
+                </label>
+                <p class="text-[10px] text-slate-500">Logo akan ditempatkan di atas kanvas dan boleh ditarik atau disaizkan ke mana-mana sudut.</p>
+            </div>
+
+            <!-- H. SETTINGS & CANVAS STYLE PANEL -->
+            <div id="tab-content-settings" class="panel-division hidden space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs text-slate-300 block mb-1">Jarak Petak (Spacing): <span id="val-spacing" class="text-indigo-400">8px</span></label>
+                        <input type="range" min="0" max="30" value="8" oninput="updateSetting('spacing', parseInt(this.value))" class="w-full accent-indigo-500">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-300 block mb-1">Lengkungan Petak (Radius): <span id="val-radius" class="text-indigo-400">4px</span></label>
+                        <input type="range" min="0" max="24" value="4" oninput="updateSetting('radius', parseInt(this.value))" class="w-full accent-indigo-500">
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between border-t border-slate-800 pt-3">
+                    <span class="text-xs text-slate-300">Warna Latar Belakang Kanvas:</span>
+                    <input type="color" id="canvas-bg-picker" value="#ffffff" onchange="updateSetting('bgColor', this.value)" class="w-12 h-8 bg-slate-800 rounded border border-slate-700 cursor-pointer">
+                </div>
+            </div>
+
+            <!-- I. AI CAPTION ASSISTANT -->
+            <div id="tab-content-ai" class="panel-division hidden space-y-3">
+                <div class="p-3 bg-gradient-to-r from-indigo-900/40 to-purple-900/40 border border-indigo-500/30 rounded-xl space-y-2">
+                    <h4 class="text-xs font-bold text-indigo-300 flex items-center">
+                        <i class="fa-solid fa-wand-magic-sparkles mr-1.5 text-amber-400"></i> Pembantu Tajuk & Kapsyen AI
+                    </h4>
+                    <p class="text-[11px] text-slate-300">Pilih jenis program untuk menjana cadangan kapsyen aktiviti secara automatik:</p>
+                    
+                    <select id="ai-template-type" class="w-full bg-slate-900 border border-slate-700 text-xs text-white p-2 rounded-lg">
+                        <option value="rasmi">Program / Mesyuarat Rasmi</option>
+                        <option value="sukan">Aktiviti Sukan & Riadah</option>
+                        <option value="lawatan">Lawatan Sambil Belajar / Kerja</option>
+                        <option value="bengkel">Bengkel / Latihan Kemahiran</option>
+                    </select>
+
+                    <button onclick="generateAICaptions()" class="w-full py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-lg text-xs font-semibold shadow flex items-center justify-center space-x-1">
+                        <i class="fa-solid fa-robot mr-1"></i>
+                        <span>Jana Tajuk & Kapsyen AI</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- J. EXPORT & SHARE PANEL -->
+            <div id="tab-content-export" class="panel-division hidden space-y-3">
+                <p class="text-xs text-slate-400">Pilih Format Simpan / Cetak Laporan:</p>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <button onclick="exportCollage('png')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl flex flex-col items-center">
+                        <i class="fa-regular fa-file-image text-emerald-400 text-xl mb-1"></i>
+                        <span class="text-xs font-bold">Simpan PNG</span>
+                    </button>
+                    <button onclick="exportCollage('jpeg')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl flex flex-col items-center">
+                        <i class="fa-solid fa-file-image text-blue-400 text-xl mb-1"></i>
+                        <span class="text-xs font-bold">Simpan JPG</span>
+                    </button>
+                    <button onclick="exportCollage('pdf')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl flex flex-col items-center">
+                        <i class="fa-solid fa-file-pdf text-red-400 text-xl mb-1"></i>
+                        <span class="text-xs font-bold">Dokumen PDF</span>
+                    </button>
+                    <button onclick="printCollageDirect()" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl flex flex-col items-center">
+                        <i class="fa-solid fa-print text-amber-400 text-xl mb-1"></i>
+                        <span class="text-xs font-bold">Cetak (Print)</span>
+                    </button>
+                </div>
+
+                <div class="border-t border-slate-800 pt-3">
+                    <span class="text-xs text-slate-400 block mb-2">Kongsi Terus Ke Aplikasi:</span>
+                    <div class="flex space-x-2">
+                        <button onclick="shareDirect('whatsapp')" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center justify-center space-x-1">
+                            <i class="fa-brands fa-whatsapp text-sm"></i>
+                            <span>WhatsApp</span>
+                        </button>
+                        <button onclick="shareDirect('telegram')" class="flex-1 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-lg text-xs font-semibold flex items-center justify-center space-x-1">
+                            <i class="fa-brands fa-telegram text-sm"></i>
+                            <span>Telegram</span>
+                        </button>
+                        <button onclick="shareDirect('gmail')" class="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold flex items-center justify-center space-x-1">
+                            <i class="fa-solid fa-envelope text-sm"></i>
+                            <span>Email</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 4. FIXED BOTTOM NAVIGATION TOOLBAR -->
+    <nav class="h-16 bg-slate-950 border-t border-slate-800 flex items-center justify-around px-1 z-40 shrink-0">
+        <button onclick="openPanel('photos')" class="nav-tab-btn flex flex-col items-center justify-center w-12 h-full text-slate-400 hover:text-indigo-400">
+            <i class="fa-solid fa-images text-base mb-0.5"></i>
+            <span class="text-[10px]">Foto</span>
+        </button>
+        <button onclick="openPanel('ratio')" class="nav-tab-btn flex flex-col items-center justify-center w-12 h-full text-slate-400 hover:text-indigo-400">
+            <i class="fa-solid fa-aspect-ratio text-base mb-0.5"></i>
+            <span class="text-[10px]">Nisbah</span>
+        </button>
+        <button onclick="openPanel('layouts')" class="nav-tab-btn flex flex-col items-center justify-center w-12 h-full text-slate-400 hover:text-indigo-400">
+            <i class="fa-solid fa-table-cells-large text-base mb-0.5"></i>
+            <span class="text-[10px]">Layout</span>
+        </button>
+        <button onclick="openPanel('editimage')" class="nav-tab-btn flex flex-col items-center justify-center w-12 h-full text-slate-400 hover:text-indigo-400">
+            <i class="fa-solid fa-crop-simple text-base mb-0.5"></i>
+            <span class="text-[10px]">Edit Foto</span>
+        </button>
+        <button onclick="openPanel('captions')" class="nav-tab-btn flex flex-col items-center justify-center w-12 h-full text-slate-400 hover:text-indigo-400">
+            <i class="fa-solid fa-closed-captioning text-base mb-0.5"></i>
+            <span class="text-[10px]">Kapsyen</span>
+        </button>
+        <button onclick="openPanel('text')" class="nav-tab-btn flex flex-col items-center justify-center w-12 h-full text-slate-400 hover:text-indigo-400">
+            <i class="fa-solid fa-font text-base mb-0.5"></i>
+            <span class="text-[10px]">Teks</span>
+        </button>
+        <button onclick="openPanel('sticker')" class="nav-tab-btn flex flex-col items-center justify-center w-12 h-full text-slate-400 hover:text-indigo-400">
+            <i class="fa-solid fa-shield-cat text-base mb-0.5"></i>
+            <span class="text-[10px]">Logo</span>
+        </button>
+        <button onclick="openPanel('settings')" class="nav-tab-btn flex flex-col items-center justify-center w-12 h-full text-slate-400 hover:text-indigo-400">
+            <i class="fa-solid fa-sliders text-base mb-0.5"></i>
+            <span class="text-[10px]">Tetapan</span>
+        </button>
+        <button onclick="openPanel('ai')" class="nav-tab-btn flex flex-col items-center justify-center w-12 h-full text-indigo-400 hover:text-indigo-300">
+            <i class="fa-solid fa-wand-magic-sparkles text-base mb-0.5"></i>
+            <span class="text-[10px]">AI</span>
+        </button>
+    </nav>
+
+    <!-- 5. CAMERA MODAL OVERLAY -->
+    <div id="camera-modal" class="fixed inset-0 bg-black/95 hidden flex-col items-center justify-between p-4">
+        <div class="w-full flex justify-between items-center text-white">
+            <span class="text-sm font-semibold"><i class="fa-solid fa-camera mr-2"></i>Kamera HD</span>
+            <button onclick="closeCameraModal()" class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-300">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="relative w-full max-w-md h-96 bg-black rounded-2xl overflow-hidden my-auto flex items-center justify-center border border-slate-800">
+            <video id="camera-feed" autoplay playsinline class="w-full h-full object-cover"></video>
+            <canvas id="camera-capture-canvas" class="hidden"></canvas>
+        </div>
+
+        <div class="w-full max-w-md flex justify-around items-center pb-6">
+            <button onclick="switchCameraFacing()" class="w-12 h-12 rounded-full bg-slate-800 text-white flex items-center justify-center">
+                <i class="fa-solid fa-camera-rotate text-lg"></i>
+            </button>
+            <button onclick="capturePhotoHD()" class="w-16 h-16 rounded-full bg-white border-4 border-indigo-500 flex items-center justify-center shadow-lg active:scale-95">
+                <div class="w-12 h-12 rounded-full bg-indigo-600"></div>
+            </button>
+            <div class="w-12"></div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // State Management
+        let appState = {
+            images: [], // List of { url, zoom, panX, panY, fit }
+            aspectRatioName: 'A4 Portrait',
+            aspectRatioValue: 1 / 1.414,
+            layoutIndex: 0,
+            spacing: 8,
+            radius: 4,
+            bgColor: '#ffffff',
+            captionMode: 'inside', // 'inside' | 'outside'
+            captions: {}, // index: text string
+            overlays: [], // [{ id, type, x, y, content, fontFamily, fontSize, color, bgColor, bold, align, src, width }]
+            selectedOverlayId: null,
+            activeCellIdx: 0,
+            swapSourceIdx: null,
+            zoomScale: 1.0,
+            facingMode: 'environment'
+        };
+
+        let cameraStream = null;
+
+        // History Stack
+        let historyStack = [];
+        let historyPointer = -1;
+
+        // 25+ Comprehensive Layout Presets
+        const LAYOUT_PRESETS = [
+            { name: "1 Foto Penuh", count: 1, boxes: [{x:0, y:0, w:1, h:1}] },
+            { name: "2 Petak Mendatar", count: 2, boxes: [{x:0, y:0, w:1, h:0.5}, {x:0, y:0.5, w:1, h:0.5}] },
+            { name: "2 Petak Tegak", count: 2, boxes: [{x:0, y:0, w:0.5, h:1}, {x:0.5, y:0, w:0.5, h:1}] },
+            { name: "3 Petak Utama Atas", count: 3, boxes: [{x:0, y:0, w:1, h:0.5}, {x:0, y:0.5, w:0.5, h:0.5}, {x:0.5, y:0.5, w:0.5, h:0.5}] },
+            { name: "3 Petak Utama Kiri", count: 3, boxes: [{x:0, y:0, w:0.5, h:1}, {x:0.5, y:0, w:0.5, h:0.5}, {x:0.5, y:0.5, w:0.5, h:0.5}] },
+            { name: "3 Petak Jalur Mendatar", count: 3, boxes: [{x:0, y:0, w:1, h:0.333}, {x:0, y:0.333, w:1, h:0.334}, {x:0, y:0.667, w:1, h:0.333}] },
+            { name: "4 Petak Grid (2x2)", count: 4, boxes: [{x:0, y:0, w:0.5, h:0.5}, {x:0.5, y:0, w:0.5, h:0.5}, {x:0, y:0.5, w:0.5, h:0.5}, {x:0.5, y:0.5, w:0.5, h:0.5}] },
+            { name: "4 Petak Utama Atas", count: 4, boxes: [{x:0, y:0, w:1, h:0.5}, {x:0, y:0.5, w:0.333, h:0.5}, {x:0.333, y:0.5, w:0.334, h:0.5}, {x:0.667, y:0.5, w:0.333, h:0.5}] },
+            { name: "4 Petak Laporan L-Shape", count: 4, boxes: [{x:0, y:0, w:0.65, h:0.65}, {x:0.65, y:0, w:0.35, h:0.65}, {x:0, y:0.65, w:0.35, h:0.35}, {x:0.35, y:0.65, w:0.65, h:0.35}] },
+            { name: "5 Petak Laporan", count: 5, boxes: [{x:0, y:0, w:0.5, h:0.5}, {x:0.5, y:0, w:0.5, h:0.5}, {x:0, y:0.5, w:0.333, h:0.5}, {x:0.333, y:0.5, w:0.334, h:0.5}, {x:0.667, y:0.5, w:0.333, h:0.5}] },
+            { name: "5 Petak Hero Tengah", count: 5, boxes: [{x:0, y:0, w:0.333, h:0.5}, {x:0.333, y:0, w:0.334, h:1}, {x:0.667, y:0, w:0.333, h:0.5}, {x:0, y:0.5, w:0.333, h:0.5}, {x:0.667, y:0.5, w:0.333, h:0.5}] },
+            { name: "6 Petak Grid (2x3)", count: 6, boxes: [{x:0, y:0, w:0.333, h:0.5}, {x:0.333, y:0, w:0.334, h:0.5}, {x:0.667, y:0, w:0.333, h:0.5}, {x:0, y:0.5, w:0.333, h:0.5}, {x:0.333, y:0.5, w:0.334, h:0.5}, {x:0.667, y:0.5, w:0.333, h:0.5}] },
+            { name: "6 Petak Hero Besar", count: 6, boxes: [{x:0, y:0, w:0.667, h:0.667}, {x:0.667, y:0, w:0.333, h:0.333}, {x:0.667, y:0.333, w:0.333, h:0.334}, {x:0, y:0.667, w:0.333, h:0.333}, {x:0.333, y:0.667, w:0.334, h:0.333}, {x:0.667, y:0.667, w:0.333, h:0.333}] },
+            { name: "7 Petak Laporan", count: 7, boxes: [{x:0, y:0, w:0.5, h:0.4}, {x:0.5, y:0, w:0.5, h:0.4}, {x:0, y:0.4, w:0.333, h:0.3}, {x:0.333, y:0.4, w:0.334, h:0.3}, {x:0.667, y:0.4, w:0.333, h:0.3}, {x:0, y:0.7, w:0.5, h:0.3}, {x:0.5, y:0.7, w:0.5, h:0.3}] },
+            { name: "8 Petak Grid (2x4)", count: 8, boxes: [{x:0, y:0, w:0.25, h:0.5}, {x:0.25, y:0, w:0.25, h:0.5}, {x:0.5, y:0, w:0.25, h:0.5}, {x:0.75, y:0, w:0.25, h:0.5}, {x:0, y:0.5, w:0.25, h:0.5}, {x:0.25, y:0.5, w:0.25, h:0.5}, {x:0.5, y:0.5, w:0.25, h:0.5}, {x:0.75, y:0.5, w:0.25, h:0.5}] },
+            { name: "9 Petak Grid (3x3)", count: 9, boxes: [{x:0, y:0, w:0.333, h:0.333}, {x:0.333, y:0, w:0.334, h:0.333}, {x:0.667, y:0, w:0.333, h:0.333}, {x:0, y:0.333, w:0.333, h:0.334}, {x:0.333, y:0.333, w:0.334, h:0.334}, {x:0.667, y:0.333, w:0.333, h:0.334}, {x:0, y:0.667, w:0.333, h:0.333}, {x:0.333, y:0.667, w:0.334, h:0.333}, {x:0.667, y:0.667, w:0.333, h:0.333}] },
+            { name: "10 Petak Laporan", count: 10, boxes: [{x:0, y:0, w:0.5, h:0.333}, {x:0.5, y:0, w:0.5, h:0.333}, {x:0, y:0.333, w:0.25, h:0.334}, {x:0.25, y:0.333, w:0.25, h:0.334}, {x:0.5, y:0.333, w:0.25, h:0.334}, {x:0.75, y:0.333, w:0.25, h:0.334}, {x:0, y:0.667, w:0.25, h:0.333}, {x:0.25, y:0.667, w:0.25, h:0.333}, {x:0.5, y:0.667, w:0.25, h:0.333}, {x:0.75, y:0.667, w:0.25, h:0.333}] },
+            { name: "12 Petak Galeri", count: 12, boxes: [{x:0, y:0, w:0.25, h:0.333}, {x:0.25, y:0, w:0.25, h:0.333}, {x:0.5, y:0, w:0.25, h:0.333}, {x:0.75, y:0, w:0.25, h:0.333}, {x:0, y:0.333, w:0.25, h:0.334}, {x:0.25, y:0.333, w:0.25, h:0.334}, {x:0.5, y:0.333, w:0.25, h:0.334}, {x:0.75, y:0.333, w:0.25, h:0.334}, {x:0, y:0.667, w:0.25, h:0.333}, {x:0.25, y:0.667, w:0.25, h:0.333}, {x:0.5, y:0.667, w:0.25, h:0.333}, {x:0.75, y:0.667, w:0.25, h:0.333}] }
+        ];
+
+        window.addEventListener('DOMContentLoaded', () => {
+            renderLayoutThumbnails();
+            saveStateToHistory();
+            resetZoomFit();
+            window.addEventListener('resize', resetZoomFit);
+            
+            // Unselect overlays when clicking canvas background
+            document.getElementById('collage-canvas').addEventListener('pointerdown', (e) => {
+                if (e.target.id === 'collage-canvas' || e.target.id === 'grid-layer') {
+                    appState.selectedOverlayId = null;
+                    renderOverlays();
+                }
+            });
+        });
+
+        function showToast(text) {
+            const toast = document.getElementById('toast-msg');
+            document.getElementById('toast-text').innerText = text;
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            toast.classList.add('opacity-100', 'translate-y-2');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'pointer-events-none');
+                toast.classList.remove('opacity-100', 'translate-y-2');
+            }, 2500);
+        }
+
+        function openPanel(tabName) {
+            document.querySelectorAll('.panel-division').forEach(el => el.classList.add('hidden'));
+            const target = document.getElementById(`tab-content-${tabName}`);
+            if (target) {
+                target.classList.remove('hidden');
+                document.getElementById('panel-title').innerText = tabName.toUpperCase();
+                document.getElementById('bottom-sheet-panel').classList.remove('translate-y-full');
+            }
+            if (tabName === 'captions') renderCaptionInputs();
+            if (tabName === 'editimage') updateImageEditControls();
+            setTimeout(resetZoomFit, 100);
+        }
+
+        function closePanel() {
+            document.getElementById('bottom-sheet-panel').classList.add('translate-y-full');
+            setTimeout(resetZoomFit, 100);
+        }
+
+        function renderCanvas() {
+            const gridLayer = document.getElementById('grid-layer');
+            gridLayer.innerHTML = '';
+
+            const activeLayout = LAYOUT_PRESETS[appState.layoutIndex] || LAYOUT_PRESETS[0];
+
+            activeLayout.boxes.forEach((box, idx) => {
+                const cell = document.createElement('div');
+                const isSelected = appState.activeCellIdx === idx;
+                const isSwap = appState.swapSourceIdx === idx;
+
+                cell.className = `grid-cell ${isSelected ? 'active' : ''} ${isSwap ? 'swap-selected' : ''}`;
+                cell.style.left = `${box.x * 100}%`;
+                cell.style.top = `${box.y * 100}%`;
+                cell.style.width = `${box.w * 100}%`;
+                cell.style.height = `${box.h * 100}%`;
+                cell.style.padding = `${appState.spacing / 2}px`;
+
+                const innerContainer = document.createElement('div');
+                innerContainer.className = 'grid-cell-inner';
+                innerContainer.style.borderRadius = `${appState.radius}px`;
+                innerContainer.style.backgroundColor = appState.bgColor;
+
+                // Cell Selection & Drag Swap
+                cell.onclick = (e) => handleCellClick(idx, e);
+
+                cell.ondragover = (e) => { e.preventDefault(); cell.classList.add('drag-over'); };
+                cell.ondragleave = () => cell.classList.remove('drag-over');
+                cell.ondrop = (e) => handleDropSwap(e, idx);
+
+                const imgObj = appState.images[idx];
+                const imgWrap = document.createElement('div');
+                imgWrap.className = 'w-full flex-1 relative overflow-hidden';
+
+                if (imgObj) {
+                    const src = typeof imgObj === 'string' ? imgObj : imgObj.url;
+                    const zoom = imgObj.zoom || 1.0;
+                    const panX = imgObj.panX || 0;
+                    const panY = imgObj.panY || 0;
+                    const fit = imgObj.fit || 'cover';
+
+                    const img = document.createElement('img');
+                    img.src = src;
+                    img.style.objectFit = fit;
+                    img.style.transform = `scale(${zoom}) translate(${panX}px, ${panY}px)`;
+                    img.draggable = true;
+                    img.ondragstart = (e) => e.dataTransfer.setData('text/plain', `cell:${idx}`);
+                    imgWrap.appendChild(img);
+                } else {
+                    const placeholder = document.createElement('div');
+                    placeholder.className = 'w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-100/60';
+                    placeholder.innerHTML = `<i class="fa-regular fa-image text-xl mb-1 text-slate-400"></i><span class="text-[10px] text-slate-500 font-medium">Petak ${idx + 1}</span>`;
+                    imgWrap.appendChild(placeholder);
+                }
+
+                innerContainer.appendChild(imgWrap);
+
+                // Captions rendering
+                const capText = appState.captions[idx] || '';
+                if (capText) {
+                    const capDiv = document.createElement('div');
+                    capDiv.innerText = capText;
+
+                    if (appState.captionMode === 'inside') {
+                        capDiv.className = 'absolute bottom-0 left-0 right-0 py-1 px-2 text-center text-[11px] font-semibold bg-black/70 text-white backdrop-blur-sm pointer-events-none z-10';
+                        imgWrap.appendChild(capDiv);
+                    } else {
+                        capDiv.className = 'w-full text-center py-1 px-2 text-[11px] font-semibold bg-slate-900 text-slate-100 border-t border-slate-700 shrink-0';
+                        innerContainer.appendChild(capDiv);
+                    }
+                }
+
+                cell.appendChild(innerContainer);
+                gridLayer.appendChild(cell);
+            });
+
+            renderOverlays();
+        }
+
+        function handleCellClick(idx, e) {
+            e.stopPropagation();
+            if (appState.swapSourceIdx === null) {
+                appState.activeCellIdx = idx;
+                updateImageEditControls();
+            } else if (appState.swapSourceIdx === idx) {
+                appState.swapSourceIdx = null;
+            } else {
+                const targetIdx = idx;
+                const srcIdx = appState.swapSourceIdx;
+
+                const temp = appState.images[srcIdx];
+                appState.images[srcIdx] = appState.images[targetIdx];
+                appState.images[targetIdx] = temp;
+
+                appState.swapSourceIdx = null;
+                appState.activeCellIdx = targetIdx;
+                saveStateToHistory();
+                showToast("Foto berjaya ditukar!");
+            }
+            renderCanvas();
+        }
+
+        function handleDropSwap(e, targetIdx) {
+            e.preventDefault();
+            const cell = e.currentTarget;
+            cell.classList.remove('drag-over');
+
+            const data = e.dataTransfer.getData('text/plain');
+            if (data.startsWith('gallery:')) {
+                const galleryIdx = parseInt(data.replace('gallery:', ''));
+                if (!isNaN(galleryIdx) && appState.images[galleryIdx]) {
+                    appState.images[targetIdx] = { ...appState.images[galleryIdx] };
+                    appState.activeCellIdx = targetIdx;
+                    saveStateToHistory();
+                    renderCanvas();
+                    showToast(`Foto diletakkan di Petak ${targetIdx + 1}`);
+                }
+            } else if (data.startsWith('cell:')) {
+                const sourceIdx = parseInt(data.replace('cell:', ''));
+                if (!isNaN(sourceIdx) && sourceIdx !== targetIdx) {
+                    const temp = appState.images[sourceIdx];
+                    appState.images[sourceIdx] = appState.images[targetIdx];
+                    appState.images[targetIdx] = temp;
+                    appState.activeCellIdx = targetIdx;
+                    saveStateToHistory();
+                    renderCanvas();
+                    showToast("Kedudukan foto ditukar");
+                }
+            }
+        }
+
+        function updateImageEditControls() {
+            const idx = appState.activeCellIdx;
+            document.getElementById('edit-cell-label').innerText = `Editing Foto Petak ${idx + 1}`;
+            const imgObj = appState.images[idx];
+            if (imgObj && typeof imgObj === 'object') {
+                document.getElementById('slider-img-zoom').value = imgObj.zoom || 1.0;
+                document.getElementById('val-img-zoom').innerText = `${(imgObj.zoom || 1.0).toFixed(2)}x`;
+                document.getElementById('slider-img-panx').value = imgObj.panX || 0;
+                document.getElementById('slider-img-pany').value = imgObj.panY || 0;
+                document.getElementById('select-img-fit').value = imgObj.fit || 'cover';
+            }
+        }
+
+        function updateActiveImageProp(prop, val) {
+            const idx = appState.activeCellIdx;
+            if (!appState.images[idx]) {
+                appState.images[idx] = { url: '', zoom: 1.0, panX: 0, panY: 0, fit: 'cover' };
+            } else if (typeof appState.images[idx] === 'string') {
+                appState.images[idx] = { url: appState.images[idx], zoom: 1.0, panX: 0, panY: 0, fit: 'cover' };
+            }
+
+            appState.images[idx][prop] = val;
+            if (prop === 'zoom') {
+                document.getElementById('val-img-zoom').innerText = `${val.toFixed(2)}x`;
+            }
+            renderCanvas();
+            saveStateToHistory();
+        }
+
+        function removeImageFromCell() {
+            const idx = appState.activeCellIdx;
+            delete appState.images[idx];
+            renderCanvas();
+            saveStateToHistory();
+            showToast(`Foto di Petak ${idx + 1} dipadam`);
+        }
+
+        function assignPhotoToActiveCell() {
+            openPanel('photos');
+            showToast(`Sila pilih atau muat naik foto untuk Petak ${appState.activeCellIdx + 1}`);
+        }
+
+        function renderOverlays() {
+            const layer = document.getElementById('overlay-layer');
+            layer.innerHTML = '';
+
+            appState.overlays.forEach((item) => {
+                const isSelected = appState.selectedOverlayId === item.id;
+                const el = document.createElement('div');
+                el.className = `draggable-overlay ${isSelected ? 'selected' : ''}`;
+                el.style.left = `${item.x}px`;
+                el.style.top = `${item.y}px`;
+
+                if (item.type === 'text') {
+                    el.style.fontFamily = item.fontFamily;
+                    el.style.fontSize = `${item.fontSize}px`;
+                    el.style.color = item.color;
+                    el.style.backgroundColor = item.bgColor || 'transparent';
+                    el.style.fontWeight = item.bold ? 'bold' : 'normal';
+                    el.style.textAlign = item.align || 'left';
+                    el.innerText = item.content;
+
+                    el.ondblclick = (e) => {
+                        e.stopPropagation();
+                        appState.selectedOverlayId = item.id;
+                        openPanel('text');
+                        syncTextPanelInputs(item);
+                    };
+                } else if (item.type === 'sticker') {
+                    const img = document.createElement('img');
+                    img.src = item.src;
+                    img.style.width = `${item.width || 120}px`;
+                    img.style.height = 'auto';
+                    img.style.pointerEvents = 'none';
+                    el.appendChild(img);
+                }
+
+                if (isSelected) {
+                    const resizer = document.createElement('div');
+                    resizer.className = 'overlay-handle resize';
+                    resizer.innerHTML = '<i class="fa-solid fa-up-right-and-down-left-from-center"></i>';
+                    attachResizeHandler(resizer, item);
+                    el.appendChild(resizer);
+
+                    const deleter = document.createElement('div');
+                    deleter.className = 'overlay-handle delete';
+                    deleter.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+                    deleter.onclick = (e) => {
+                        e.stopPropagation();
+                        appState.overlays = appState.overlays.filter(o => o.id !== item.id);
+                        appState.selectedOverlayId = null;
+                        renderCanvas();
+                        saveStateToHistory();
+                    };
+                    el.appendChild(deleter);
+                }
+
+                attachDragHandler(el, item);
+                layer.appendChild(el);
+            });
+        }
+
+        function attachDragHandler(el, item) {
+            el.onpointerdown = (e) => {
+                if (e.target.classList.contains('overlay-handle')) return;
+                e.stopPropagation();
+
+                appState.selectedOverlayId = item.id;
+                renderOverlays();
+
+                if (item.type === 'text') {
+                    syncTextPanelInputs(item);
+                }
+
+                const startX = e.clientX;
+                const startY = e.clientY;
+                const initX = item.x;
+                const initY = item.y;
+
+                const onPointerMove = (evt) => {
+                    const dx = evt.clientX - startX;
+                    const dy = evt.clientY - startY;
+                    item.x = initX + dx;
+                    item.y = initY + dy;
+                    el.style.left = `${item.x}px`;
+                    el.style.top = `${item.y}px`;
+                };
+
+                const onPointerUp = () => {
+                    window.removeEventListener('pointermove', onPointerMove);
+                    window.removeEventListener('pointerup', onPointerUp);
+                    saveStateToHistory();
+                };
+
+                window.addEventListener('pointermove', onPointerMove);
+                window.addEventListener('pointerup', onPointerUp);
+            };
+        }
+
+        function attachResizeHandler(resizer, item) {
+            resizer.onpointerdown = (e) => {
+                e.stopPropagation();
+                const startX = e.clientX;
+                const startW = item.width || 120;
+                const startSize = item.fontSize || 28;
+
+                const onPointerMove = (evt) => {
+                    const dx = evt.clientX - startX;
+                    if (item.type === 'sticker') {
+                        item.width = Math.max(30, startW + dx);
+                    } else if (item.type === 'text') {
+                        item.fontSize = Math.max(10, Math.min(120, startSize + Math.round(dx / 3)));
+                        document.getElementById('text-font-size').value = item.fontSize;
+                    }
+                    renderCanvas();
+                };
+
+                const onPointerUp = () => {
+                    window.removeEventListener('pointermove', onPointerMove);
+                    window.removeEventListener('pointerup', onPointerUp);
+                    saveStateToHistory();
+                };
+
+                window.addEventListener('pointermove', onPointerMove);
+                window.addEventListener('pointerup', onPointerUp);
+            };
+        }
+
+        function syncTextPanelInputs(item) {
+            document.getElementById('text-content-input').value = item.content || '';
+            document.getElementById('text-font-family').value = item.fontFamily || 'Montserrat';
+            document.getElementById('text-font-size').value = item.fontSize || 28;
+            document.getElementById('text-color').value = item.color || '#ffffff';
+            document.getElementById('text-bg-color').value = item.bgColor || '#000000';
+        }
+
+        function resetZoomFit() {
+            const container = document.getElementById('canvas-outer-container');
+            const canvas = document.getElementById('collage-canvas');
+
+            const padding = 30;
+            const availableW = container.clientWidth - padding;
+            const availableH = container.clientHeight - padding;
+
+            if (availableW <= 0 || availableH <= 0) return;
+
+            let targetW = availableW;
+            let targetH = targetW / appState.aspectRatioValue;
+
+            if (targetH > availableH) {
+                targetH = availableH;
+                targetW = targetH * appState.aspectRatioValue;
+            }
+
+            canvas.style.width = `${Math.floor(targetW)}px`;
+            canvas.style.height = `${Math.floor(targetH)}px`;
+            appState.zoomScale = 1.0;
+            canvas.style.transform = `scale(${appState.zoomScale})`;
+            document.getElementById('zoom-label').innerText = '100%';
+
+            renderCanvas();
+        }
+
+        function adjustZoom(delta) {
+            appState.zoomScale = Math.max(0.4, Math.min(2.5, appState.zoomScale + delta));
+            const canvas = document.getElementById('collage-canvas');
+            canvas.style.transform = `scale(${appState.zoomScale})`;
+            document.getElementById('zoom-label').innerText = `${Math.round(appState.zoomScale * 100)}%`;
+        }
+
+        function setAspectRatio(name, val) {
+            appState.aspectRatioName = name;
+            appState.aspectRatioValue = val;
+            document.getElementById('canvas-info-badge').innerText = `Nisbah: ${name}`;
+            resetZoomFit();
+            saveStateToHistory();
+            showToast(`Nisbah ditukar ke ${name}`);
+        }
+
+        function renderLayoutThumbnails() {
+            const container = document.getElementById('layouts-grid-container');
+            container.innerHTML = '';
+
+            LAYOUT_PRESETS.forEach((preset, idx) => {
+                const btn = document.createElement('button');
+                btn.className = `p-1.5 bg-slate-800 border ${appState.layoutIndex === idx ? 'border-indigo-500 bg-indigo-500/10' : 'border-slate-700'} rounded-lg flex flex-col items-center hover:border-indigo-400 transition-all`;
+                btn.onclick = () => {
+                    appState.layoutIndex = idx;
+                    renderLayoutThumbnails();
+                    renderCanvas();
+                    renderCaptionInputs();
+                    saveStateToHistory();
+                };
+
+                const miniBox = document.createElement('div');
+                miniBox.className = 'w-10 h-10 bg-slate-900 relative rounded overflow-hidden border border-slate-700 mb-1 pointer-events-none';
+
+                preset.boxes.forEach(b => {
+                    const sub = document.createElement('div');
+                    sub.className = 'absolute border border-slate-600 bg-slate-700';
+                    sub.style.left = `${b.x * 100}%`;
+                    sub.style.top = `${b.y * 100}%`;
+                    sub.style.width = `${b.w * 100}%`;
+                    sub.style.height = `${b.h * 100}%`;
+                    miniBox.appendChild(sub);
+                });
+
+                btn.appendChild(miniBox);
+                btn.innerHTML += `<span class="text-[9px] text-slate-300 font-medium truncate w-full text-center">${preset.name}</span>`;
+                container.appendChild(btn);
+            });
+        }
+
+        function handleFileUpload(e) {
+            const files = Array.from(e.target.files).slice(0, 12);
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    if (appState.images.length < 12) {
+                        appState.images.push({ url: evt.target.result, zoom: 1.0, panX: 0, panY: 0, fit: 'cover' });
+                        updatePhotoThumbnails();
+                        renderCanvas();
+                        saveStateToHistory();
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+            showToast(`${files.length} foto berjaya dimuat naik`);
+        }
+
+        function updatePhotoThumbnails() {
+            const list = document.getElementById('photo-thumbnails-list');
+            const total = appState.images.filter(Boolean).length;
+            document.getElementById('photo-count-badge').innerText = `${total} / 12`;
+            list.innerHTML = '';
+
+            if (total === 0) {
+                list.innerHTML = `<p class="text-xs text-slate-500 m-auto">Tiada gambar dimuat naik lagi.</p>`;
+                return;
+            }
+
+            appState.images.forEach((imgObj, i) => {
+                if (!imgObj) return;
+                const src = typeof imgObj === 'string' ? imgObj : imgObj.url;
+                const item = document.createElement('div');
+                item.className = 'relative w-14 h-14 shrink-0 rounded-lg overflow-hidden border border-slate-700 group cursor-grab active:cursor-grabbing';
+                item.draggable = true;
+                item.ondragstart = (e) => e.dataTransfer.setData('text/plain', `gallery:${i}`);
+                item.onclick = () => {
+                    appState.images[appState.activeCellIdx] = { ...imgObj };
+                    renderCanvas();
+                    saveStateToHistory();
+                    showToast(`Foto diletakkan pada Petak ${appState.activeCellIdx + 1}`);
+                };
+
+                item.innerHTML = `
+                    <img src="${src}" class="w-full h-full object-cover">
+                    <button onclick="event.stopPropagation(); removePhoto(${i})" class="absolute top-0 right-0 bg-red-600/90 text-white w-4 h-4 flex items-center justify-center text-[9px] rounded-bl">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function removePhoto(idx) {
+            appState.images.splice(idx, 1);
+            updatePhotoThumbnails();
+            renderCanvas();
+            saveStateToHistory();
+        }
+
+        function renderCaptionInputs() {
+            const container = document.getElementById('caption-inputs-list');
+            container.innerHTML = '';
+
+            const preset = LAYOUT_PRESETS[appState.layoutIndex];
+            preset.boxes.forEach((_, idx) => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center space-x-2';
+                row.innerHTML = `
+                    <span class="text-xs text-slate-400 font-mono w-14 shrink-0">Petak ${idx + 1}:</span>
+                    <input type="text" value="${appState.captions[idx] || ''}" oninput="updateCaption(${idx}, this.value)" placeholder="Keterangan aktiviti foto ${idx + 1}..." class="flex-1 bg-slate-800 border border-slate-700 text-xs text-white rounded-lg p-1.5 focus:outline-none focus:border-indigo-500">
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        function updateCaption(idx, val) {
+            appState.captions[idx] = val;
+            renderCanvas();
+            saveStateToHistory();
+        }
+
+        function setCaptionMode(mode) {
+            appState.captionMode = mode;
+            document.getElementById('cap-mode-in').className = mode === 'inside' ? 'px-2.5 py-1 rounded-md font-semibold bg-indigo-600 text-white' : 'px-2.5 py-1 rounded-md font-semibold text-slate-400';
+            document.getElementById('cap-mode-out').className = mode === 'outside' ? 'px-2.5 py-1 rounded-md font-semibold bg-indigo-600 text-white' : 'px-2.5 py-1 rounded-md font-semibold text-slate-400';
+            renderCanvas();
+            saveStateToHistory();
+        }
+
+        function addNewTextOverlay() {
+            const canvasEl = document.getElementById('collage-canvas');
+            const newText = {
+                id: Date.now(),
+                type: 'text',
+                content: 'LAPORAN AKTIVITI RASMI',
+                x: Math.floor(canvasEl.clientWidth / 4),
+                y: 30,
+                fontFamily: 'Montserrat',
+                fontSize: 24,
+                color: '#ffffff',
+                bgColor: '#4f46e5',
+                bold: true,
+                align: 'center'
+            };
+            appState.overlays.push(newText);
+            appState.selectedOverlayId = newText.id;
+            renderCanvas();
+            syncTextPanelInputs(newText);
+            saveStateToHistory();
+            showToast("Teks ditambah!");
+        }
+
+        function updateSelectedTextProp(prop, val) {
+            const target = appState.overlays.find(o => o.id === appState.selectedOverlayId);
+            if (target) {
+                target[prop] = val;
+                renderCanvas();
+                saveStateToHistory();
+            }
+        }
+
+        function toggleSelectedTextBold() {
+            const target = appState.overlays.find(o => o.id === appState.selectedOverlayId);
+            if (target) {
+                target.bold = !target.bold;
+                renderCanvas();
+                saveStateToHistory();
+            }
+        }
+
+        function handleStickerUpload(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const newSticker = {
+                        id: Date.now(),
+                        type: 'sticker',
+                        src: evt.target.result,
+                        x: 20,
+                        y: 20,
+                        width: 100
+                    };
+                    appState.overlays.push(newSticker);
+                    appState.selectedOverlayId = newSticker.id;
+                    renderCanvas();
+                    saveStateToHistory();
+                    showToast("Logo / Sticker ditambah!");
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function updateSetting(key, val) {
+            appState[key] = val;
+            if (key === 'spacing') document.getElementById('val-spacing').innerText = `${val}px`;
+            if (key === 'radius') document.getElementById('val-radius').innerText = `${val}px`;
+            renderCanvas();
+            saveStateToHistory();
+        }
+
+        async function openCameraModal() {
+            document.getElementById('camera-modal').classList.remove('hidden');
+            document.getElementById('camera-modal').classList.add('flex');
+            try {
+                cameraStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: appState.facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } }
+                });
+                document.getElementById('camera-feed').srcObject = cameraStream;
+            } catch (err) {
+                console.error("Gagal mengakses kamera: ", err);
+                showToast("Ralat: Kamera tidak disokong atau tiada kebenaran akses!");
+            }
+        }
+
+        function closeCameraModal() {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(t => t.stop());
+                cameraStream = null;
+            }
+            document.getElementById('camera-modal').classList.add('hidden');
+            document.getElementById('camera-modal').classList.remove('flex');
+        }
+
+        function switchCameraFacing() {
+            appState.facingMode = appState.facingMode === 'environment' ? 'user' : 'environment';
+            closeCameraModal();
+            openCameraModal();
+        }
+
+        function capturePhotoHD() {
+            const video = document.getElementById('camera-feed');
+            const canvas = document.getElementById('camera-capture-canvas');
+            canvas.width = video.videoWidth || 1280;
+            canvas.height = video.videoHeight || 720;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const imgUrl = canvas.toDataURL('image/jpeg', 0.95);
+            if (appState.images.length < 12) {
+                appState.images.push({ url: imgUrl, zoom: 1.0, panX: 0, panY: 0, fit: 'cover' });
+                updatePhotoThumbnails();
+                renderCanvas();
+                saveStateToHistory();
+                showToast("Foto HD diambil!");
+            }
+            closeCameraModal();
+        }
+
+        function generateAICaptions() {
+            const type = document.getElementById('ai-template-type').value;
+            let captionsList = [];
+
+            if (type === 'sukan') {
+                captionsList = [
+                    "Sesi Senaman Pemanasan Badan & Taklimat Keselamatan",
+                    "Aksi Pertandingan & Permainan Peringkat Kumpulan",
+                    "Penyampaian Pingat & Hadiah Kepada Pemenang",
+                    "Sesi Bergambar Kenangan Para Peserta Program"
+                ];
+            } else if (type === 'lawatan') {
+                captionsList = [
+                    "Ketibaan Rombongan & Sambutan Mesra Tuan Rumah",
+                    "Sesi Taklimat Pengenalan & Sesi Soal Jawab",
+                    "Lawatan Tapak & Pameran Kemudahan Jabatan",
+                    "Penyampaian Cenderamata Kenang-Kenangan"
+                ];
+            } else if (type === 'bengkel') {
+                captionsList = [
+                    "Pendaftaran Peserta & Penyerahan Modul Latihan",
+                    "Sesi Perbentangan & Ceramah Teknikal Peserta",
+                    "Latihan Amali Group Work & Perbincangan",
+                    "Majlis Penutupan & Penyampaian Sijil Penyertaan"
+                ];
+            } else {
+                captionsList = [
+                    "Perhimpunan Pagi & Bacaan Doa Pembuka Majlis",
+                    "Ucapan Perasmian Oleh Pengerusi Program",
+                    "Sesi Perbincangan Laporan AKTIVITI & Belanjawan",
+                    "Sesi Bergambar Kenangan Bersama Ahli Jawatankuasa"
+                ];
+            }
+
+            captionsList.forEach((cap, idx) => {
+                appState.captions[idx] = cap;
+            });
+
+            renderCanvas();
+            renderCaptionInputs();
+            closePanel();
+            showToast("Kapsyen AI Berjaya Dijana!");
+        }
+
+        function saveStateToHistory() {
+            historyStack = historyStack.slice(0, historyPointer + 1);
+            historyStack.push(JSON.stringify(appState));
+            historyPointer++;
+        }
+
+        function undoAction() {
+            if (historyPointer > 0) {
+                historyPointer--;
+                appState = JSON.parse(historyStack[historyPointer]);
+                renderCanvas();
+                updatePhotoThumbnails();
+                showToast("Batal tindakan (Undo)");
+            }
+        }
+
+        function redoAction() {
+            if (historyPointer < historyStack.length - 1) {
+                historyPointer++;
+                appState = JSON.parse(historyStack[historyPointer]);
+                renderCanvas();
+                updatePhotoThumbnails();
+                showToast("Semula tindakan (Redo)");
+            }
+        }
+
+        function clearCanvasPrompt() {
+            if (confirm("Adakah anda pasti mahu memadam semua foto, teks, dan kapsyen?")) {
+                appState.images = [];
+                appState.captions = {};
+                appState.overlays = [];
+                appState.selectedOverlayId = null;
+                appState.swapSourceIdx = null;
+                renderCanvas();
+                updatePhotoThumbnails();
+                saveStateToHistory();
+                showToast("Semua kandungan telah dipadam.");
+            }
+        }
+
+        async function exportCollage(format) {
+            showToast("Menjana dokumen... Sila tunggu");
+            const canvasEl = document.getElementById('collage-canvas');
+            
+            // Unselect handles during export
+            const savedSelectedId = appState.selectedOverlayId;
+            const savedSwapIdx = appState.swapSourceIdx;
+            const savedActiveIdx = appState.activeCellIdx;
+
+            appState.selectedOverlayId = null;
+            appState.swapSourceIdx = null;
+            appState.activeCellIdx = null;
+            renderCanvas();
+
+            try {
+                const renderedCanvas = await html2canvas(canvasEl, {
+                    scale: 3,
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: appState.bgColor
+                });
+
+                if (format === 'pdf') {
+                    const { jsPDF } = window.jspdf;
+                    const isLandscape = appState.aspectRatioValue > 1;
+                    const doc = new jsPDF({
+                        orientation: isLandscape ? 'landscape' : 'portrait',
+                        unit: 'mm',
+                        format: 'a4'
+                    });
+
+                    const pdfWidth = doc.internal.pageSize.getWidth();
+                    const pdfHeight = doc.internal.pageSize.getHeight();
+                    const imgData = renderedCanvas.toDataURL('image/jpeg', 0.95);
+
+                    doc.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+                    doc.save(`Laporan-Kolaj-${Date.now()}.pdf`);
+                    showToast("Dokumen PDF berjaya disimpan!");
+                } else {
+                    const mimeType = format === 'png' ? 'image/png' : 'image/jpeg';
+                    const imgData = renderedCanvas.toDataURL(mimeType, 0.95);
+                    const link = document.createElement('a');
+                    link.download = `Laporan-Kolaj-${Date.now()}.${format}`;
+                    link.href = imgData;
+                    link.click();
+                    showToast(`Foto ${format.toUpperCase()} berjaya disimpan!`);
+                }
+            } catch (err) {
+                console.error("Ralat mengeksport: ", err);
+                showToast("Gagal mengeksport dokumen.");
+            } finally {
+                appState.selectedOverlayId = savedSelectedId;
+                appState.swapSourceIdx = savedSwapIdx;
+                appState.activeCellIdx = savedActiveIdx;
+                renderCanvas();
+            }
+        }
+
+        function printCollageDirect() {
+            window.print();
+        }
+
+        async function shareDirect(platform) {
+            const canvasEl = document.getElementById('collage-canvas');
+            try {
+                const renderedCanvas = await html2canvas(canvasEl, { scale: 2 });
+                renderedCanvas.toBlob(async (blob) => {
+                    if (navigator.share && blob) {
+                        const file = new File([blob], 'laporan-kolaj.png', { type: 'image/png' });
+                        try {
+                            await navigator.share({
+                                title: 'Laporan Bergambar',
+                                text: 'Lihat Laporan Bergambar Kolaj Saya:',
+                                files: [file]
+                            });
+                            return;
+                        } catch (e) {
+                            console.log('Web Share dibatalkan', e);
+                        }
+                    }
+
+                    const text = encodeURIComponent("Lihat Laporan Bergambar Kolaj Saya:");
+                    if (platform === 'whatsapp') window.open(`https://api.whatsapp.com/send?text=${text}`);
+                    if (platform === 'telegram') window.open(`https://t.me/share/url?url=&text=${text}`);
+                    if (platform === 'gmail') window.open(`mailto:?subject=Laporan Bergambar&body=${text}`);
+                }, 'image/png');
+            } catch (err) {
+                console.error("Ralat perkongsian: ", err);
+            }
+        }
+    </script>
+</body>
+</html>
